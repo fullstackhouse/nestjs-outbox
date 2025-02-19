@@ -1,6 +1,6 @@
 export abstract class InboxOutboxEvent {
   /**
-   * @description Should be unique static name of the event
+   * @description Should be unique name of the event
    */
-  name: string;
+  public abstract readonly name: string;
 }
