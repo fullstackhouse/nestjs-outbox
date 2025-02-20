@@ -1,8 +1,7 @@
 export interface DatabaseDriverPersister {
+  persist<T extends object>(entity: T): void;
 
-  persist<T>(entity: T): void;
-
-  remove<T>(entity: T): void;
+  remove<T extends object>(entity: T): void;
 
   flush(): Promise<void>;
 }

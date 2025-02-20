@@ -1,13 +1,12 @@
 import { Inject, Injectable } from '@nestjs/common';
 import { DATABASE_DRIVER_FACTORY_TOKEN, DatabaseDriverFactory } from '../driver/database-driver.factory';
-import { DatabaseDriver } from '../driver/database.driver';
+import { DatabaseDriverPersister } from '../driver/database.driver-persister';
 import { InboxOutboxModuleEventOptions, InboxOutboxModuleOptions, MODULE_OPTIONS_TOKEN } from '../inbox-outbox.module-definition';
 import { IListener } from '../listener/contract/listener.interface';
 import { ListenerDuplicateNameException } from '../listener/exception/listener-duplicate-name.exception';
 import { INBOX_OUTBOX_EVENT_PROCESSOR_TOKEN, InboxOutboxEventProcessorContract } from '../processor/inbox-outbox-event-processor.contract';
 import { EVENT_CONFIGURATION_RESOLVER_TOKEN, EventConfigurationResolverContract } from '../resolver/event-configuration-resolver.contract';
 import { InboxOutboxEvent } from './contract/inbox-outbox-event.interface';
-import { DatabaseDriverPersister } from '../driver/database.driver-persister';
 
 export enum TransactionalEventEmitterOperations {
   persist = 'persist',
@@ -29,7 +28,7 @@ export class TransactionalEventEmitter {
     event: InboxOutboxEvent,
     entities: {
       operation: TransactionalEventEmitterOperations;
-      entity: any;
+      entity: object;
     }[],
     customDatabaseDriverPersister?: DatabaseDriverPersister,
   ): Promise<void> {
@@ -42,7 +41,12 @@ export class TransactionalEventEmitter {
     const databaseDriver = this.databaseDriverFactory.create(this.eventConfigurationResolver);
     const currentTimestamp = new Date().getTime();
 
-    const inboxOutboxTransportEvent = databaseDriver.createInboxOutboxTransportEvent(event.name, event, currentTimestamp + eventOptions.listeners.expiresAtTTL, currentTimestamp + eventOptions.listeners.readyToRetryAfterTTL);
+    const inboxOutboxTransportEvent = databaseDriver.createInboxOutboxTransportEvent(
+      event.name,
+      event,
+      currentTimestamp + eventOptions.listeners.expiresAtTTL,
+      currentTimestamp + eventOptions.listeners.readyToRetryAfterTTL,
+    );
 
     const persister = customDatabaseDriverPersister ?? databaseDriver;
 
