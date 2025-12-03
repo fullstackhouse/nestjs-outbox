@@ -1,3 +1,4 @@
+import { vi } from 'vitest';
 import { DatabaseDriverFactory } from "../../driver/database-driver.factory";
 import { DatabaseDriver } from "../../driver/database.driver";
 import { InboxOutboxModuleOptions } from "../../inbox-outbox.module-definition";
@@ -28,11 +29,11 @@ describe('InboxOutboxEventProcessor', () => {
       mockedInboxOutboxEventProcessor = createMockedInboxOutboxEventProcessor();
       mockedEventConfigurationResolver = createMockedEventConfigurationResolver();
       mockLogger = {
-        error: jest.fn(),
-        log: jest.fn(),
-        warn: jest.fn(),
-        debug: jest.fn(),
-        info: jest.fn(),
+        error: vi.fn(),
+        log: vi.fn(),
+        warn: vi.fn(),
+        debug: vi.fn(),
+        info: vi.fn(),
       }; 
     });
 
@@ -50,13 +51,13 @@ describe('InboxOutboxEventProcessor', () => {
           ];
 
         const firstListener : IListener<any> = {
-            handle: jest.fn().mockReturnValue({}),
-            getName: jest.fn().mockReturnValue('listener'),
+            handle: vi.fn().mockReturnValue({}),
+            getName: vi.fn().mockReturnValue('listener'),
         };
 
         const secondListener : IListener<any> = {
-            handle: jest.fn().mockReturnValue({}),
-            getName: jest.fn().mockReturnValue('listener'),
+            handle: vi.fn().mockReturnValue({}),
+            getName: vi.fn().mockReturnValue('listener'),
         };
         
 
@@ -98,13 +99,13 @@ describe('InboxOutboxEventProcessor', () => {
           ];
 
         const firstListener : IListener<any> = {
-            handle: jest.fn().mockReturnValue({}),
-            getName: jest.fn().mockReturnValue('listener'),
+            handle: vi.fn().mockReturnValue({}),
+            getName: vi.fn().mockReturnValue('listener'),
         };
 
         const secondListener : IListener<any> = {
-            handle: jest.fn().mockRejectedValue({}),
-            getName: jest.fn().mockReturnValue('listener'),
+            handle: vi.fn().mockRejectedValue({}),
+            getName: vi.fn().mockReturnValue('listener'),
         };
         
 

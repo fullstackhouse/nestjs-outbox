@@ -1,3 +1,4 @@
+import { vi, Mock } from 'vitest';
 import { Logger } from '@nestjs/common';
 import { DatabaseDriverFactory } from '../../driver/database-driver.factory';
 import { DatabaseDriver } from '../../driver/database.driver';
@@ -20,7 +21,7 @@ describe('RetryableInboxOutboxEventPoller', () => {
   let mockInboxOutboxEventProcessor: InboxOutboxEventProcessorContract;
 
   beforeEach(() => {
-    jest.useFakeTimers();
+    vi.useFakeTimers();
     mockedDriver = createMockedDriver();
     mockedDriverFactory = createMockedDriverFactory(mockedDriver);
     inboxOutboxOptions = createMockedInboxOutboxOptionsFactory(mockedDriverFactory, [
@@ -34,25 +35,25 @@ describe('RetryableInboxOutboxEventPoller', () => {
       },
     ]);
     mockLogger = {
-      log: jest.fn(),
-      error: jest.fn(),
-      warn: jest.fn(),
-      debug: jest.fn(),
+      log: vi.fn(),
+      error: vi.fn(),
+      warn: vi.fn(),
+      debug: vi.fn(),
     } as unknown as Logger;
 
     mockTransactionalEventEmitter = {
-      getListeners: jest.fn().mockReturnValue([]),
+      getListeners: vi.fn().mockReturnValue([]),
     } as unknown as TransactionalEventEmitter;
 
     mockEventConfigurationResolver = {} as EventConfigurationResolver;
 
     mockInboxOutboxEventProcessor = {
-      process: jest.fn().mockResolvedValue(undefined),
+      process: vi.fn().mockResolvedValue(undefined),
     };
   });
 
   afterEach(() => {
-    jest.useRealTimers();
+    vi.useRealTimers();
   });
 
   function createPoller() {
@@ -78,21 +79,21 @@ describe('RetryableInboxOutboxEventPoller', () => {
     });
 
     it('should stop polling after shutdown is initiated', async () => {
-      (mockedDriver.findAndExtendReadyToRetryEvents as jest.Mock).mockResolvedValue([]);
+      (mockedDriver.findAndExtendReadyToRetryEvents as Mock).mockResolvedValue([]);
       const poller = createPoller();
       await poller.onModuleInit();
 
-      jest.advanceTimersByTime(inboxOutboxOptions.retryEveryMilliseconds);
+      vi.advanceTimersByTime(inboxOutboxOptions.retryEveryMilliseconds);
       await Promise.resolve();
 
-      const callCountBeforeShutdown = (mockedDriver.findAndExtendReadyToRetryEvents as jest.Mock).mock.calls.length;
+      const callCountBeforeShutdown = (mockedDriver.findAndExtendReadyToRetryEvents as Mock).mock.calls.length;
 
       await poller.onModuleDestroy();
 
-      jest.advanceTimersByTime(inboxOutboxOptions.retryEveryMilliseconds * 5);
+      vi.advanceTimersByTime(inboxOutboxOptions.retryEveryMilliseconds * 5);
       await Promise.resolve();
 
-      const callCountAfterShutdown = (mockedDriver.findAndExtendReadyToRetryEvents as jest.Mock).mock.calls.length;
+      const callCountAfterShutdown = (mockedDriver.findAndExtendReadyToRetryEvents as Mock).mock.calls.length;
       expect(callCountAfterShutdown).toBe(callCountBeforeShutdown);
     });
 
@@ -102,7 +103,7 @@ describe('RetryableInboxOutboxEventPoller', () => {
         resolveProcessing = resolve;
       });
 
-      (mockInboxOutboxEventProcessor.process as jest.Mock).mockReturnValue(processingPromise);
+      (mockInboxOutboxEventProcessor.process as Mock).mockReturnValue(processingPromise);
 
       const mockEvent = {
         id: 1,
@@ -113,12 +114,12 @@ describe('RetryableInboxOutboxEventPoller', () => {
         expireAt: Date.now() + 1000,
         insertedAt: Date.now(),
       };
-      (mockedDriver.findAndExtendReadyToRetryEvents as jest.Mock).mockResolvedValue([mockEvent]);
+      (mockedDriver.findAndExtendReadyToRetryEvents as Mock).mockResolvedValue([mockEvent]);
 
       const poller = createPoller();
       await poller.onModuleInit();
 
-      jest.advanceTimersByTime(inboxOutboxOptions.retryEveryMilliseconds);
+      vi.advanceTimersByTime(inboxOutboxOptions.retryEveryMilliseconds);
       await Promise.resolve();
       await Promise.resolve();
 
@@ -143,7 +144,7 @@ describe('RetryableInboxOutboxEventPoller', () => {
     });
 
     it('should handle shutdown when no in-flight processing exists', async () => {
-      (mockedDriver.findAndExtendReadyToRetryEvents as jest.Mock).mockResolvedValue([]);
+      (mockedDriver.findAndExtendReadyToRetryEvents as Mock).mockResolvedValue([]);
       const poller = createPoller();
       await poller.onModuleInit();
 
