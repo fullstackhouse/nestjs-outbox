@@ -154,6 +154,31 @@ await this.transactionalEventEmitter.emitAsync(
 
 > **Note:** Use `emitAsync` if you need to wait for listeners to execute and complete before moving on. Use `emit` if you want to fire-and-forget the event delivery.
 
+### Immediate vs Deferred Processing
+
+By default, events are immediately processed after being saved to the database. You can disable this behavior per-event using the `immediateProcessing` option:
+
+```typescript
+{
+  name: UserApplicationAssignedEvent.name,
+  listeners: {
+    expiresAtTTL: 1000 * 60 * 60 * 24,
+    maxExecutionTimeTTL: 1000 * 15,
+    readyToRetryAfterTTL: 10000,
+  },
+  immediateProcessing: false, // Only save to DB, process later via poller
+}
+```
+
+**Trade-offs:**
+
+| Immediate Processing (`true`, default) | Deferred Processing (`false`) |
+|----------------------------------------|-------------------------------|
+| Lower latency for listeners | Higher latency (waits for poller) |
+| Best effort delivery on first attempt | All delivery via poller |
+| If app crashes during processing, event is still in DB for retry | Safer for crash recovery - no in-flight processing |
+| Suitable for most use cases | Suitable for "fire and forget" pattern |
+
 ### Event Contract:
 Ensure that your event classes implement the `InboxOutboxEvent` interface for consistency and clarity.
 
@@ -165,6 +190,7 @@ Ensure that your event classes implement the `InboxOutboxEvent` interface for co
 - **readyToRetryAfterTTL**: This is how long it will wait before retrying the event listeners
 - **retryEveryMilliseconds**: This is how often it will check for events that need to be retried
 - **maxInboxOutboxTransportEventPerRetry**: This is how many events it will retry at a time
+- **immediateProcessing** (optional, default: `true`): Whether to immediately process the event after saving to DB. When `true`, events are saved and immediately delivered to listeners. When `false`, events are only saved to DB and processed later by the poller (fire-and-forget pattern)
 
 #### Registration
 - Register the `InboxOutboxModule` within your application's bootstrap process, specifying global accessibility and event configurations.
