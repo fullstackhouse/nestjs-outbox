@@ -27,17 +27,20 @@ export class TypeOrmInboxOutboxTransportEvent implements InboxOutboxTransportEve
 
   @Column({
     name: 'ready_to_retry_after',
+    type: 'bigint',
     nullable: true,
   })
   readyToRetryAfter: number;
 
   @Column({
     name: 'expire_at',
+    type: 'bigint',
   })
   expireAt: number;
 
   @Column({
     name: 'inserted_at',
+    type: 'bigint',
   })
   insertedAt: number;
 
