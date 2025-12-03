@@ -7,6 +7,6 @@ export * from "./inbox-outbox.module-definition";
 export * from "./listener/contract/listener.interface";
 export * from "./listener/discovery/listener.decorator";
 export * from "./model/inbox-outbox-transport-event.interface";
-export * from "./poller/event-notification-listener.interface";
+export * from "./poller/event-listener.interface";
 export * from "./resolver/event-configuration-resolver.contract";
 

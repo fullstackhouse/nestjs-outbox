@@ -11,11 +11,11 @@ import {
   InboxOutboxEvent,
   IListener,
   InboxOutboxModule,
-  EVENT_NOTIFICATION_LISTENER_TOKEN,
+  EVENT_LISTENER_TOKEN,
 } from '@nestixis/nestjs-inbox-outbox';
 import { MikroOrmInboxOutboxTransportEvent } from '../model/mikroorm-inbox-outbox-transport-event.model';
 import { MikroORMDatabaseDriverFactory } from '../driver/mikroorm-database-driver.factory';
-import { PostgreSQLEventNotificationListener } from '../listener/postgresql-event-notification.listener';
+import { PostgreSQLEventListener } from '../listener/postgresql-event-listener';
 import {
   BASE_CONNECTION,
   createTestDatabase,
@@ -51,16 +51,11 @@ interface TestContext {
   orm: MikroORM;
   module: TestingModule;
   dbName: string;
-  notificationListener: PostgreSQLEventNotificationListener;
+  eventListener: PostgreSQLEventListener;
 }
 
 async function createTestAppWithNotify(): Promise<TestContext> {
   const dbName = await createTestDatabase();
-
-  const notificationListener = new PostgreSQLEventNotificationListener({
-    ...BASE_CONNECTION,
-    database: dbName,
-  });
 
   const mikroOrmModule = MikroOrmModule.forRoot({
     driver: PostgreSqlDriver,
@@ -96,12 +91,6 @@ async function createTestAppWithNotify(): Promise<TestContext> {
 
   const testingModule = await Test.createTestingModule({
     imports: [mikroOrmModule, inboxOutboxModule],
-    providers: [
-      {
-        provide: EVENT_NOTIFICATION_LISTENER_TOKEN,
-        useValue: notificationListener,
-      },
-    ],
   }).compile();
 
   const app = testingModule.createNestApplication();
@@ -131,19 +120,20 @@ async function createTestAppWithNotify(): Promise<TestContext> {
   `);
   await pgClient.end();
 
-  await notificationListener.connect();
+  const eventListener = new PostgreSQLEventListener(orm);
+  await eventListener.connect();
 
   return {
     app,
     orm,
     module: testingModule,
     dbName,
-    notificationListener,
+    eventListener,
   };
 }
 
 async function cleanupTestAppWithNotify(context: TestContext): Promise<void> {
-  await context.notificationListener.disconnect();
+  await context.eventListener.disconnect();
   await context.app.close();
   await context.orm.close();
   await dropTestDatabase(context.dbName);
@@ -158,17 +148,17 @@ describe('LISTEN/NOTIFY Integration Tests', () => {
     }
   });
 
-  it('should receive instant notification when event is inserted', async () => {
+  it('should receive instant event when event is inserted', async () => {
     context = await createTestAppWithNotify();
 
     const emitter = context.module.get(TransactionalEventEmitter);
     const orm = context.orm;
 
-    let notificationReceived = false;
-    const notificationPromise = new Promise<void>((resolve) => {
+    let eventReceived = false;
+    const eventPromise = new Promise<void>((resolve) => {
       const subscription =
-        context.notificationListener.notifications$.subscribe(() => {
-          notificationReceived = true;
+        context.eventListener.events$.subscribe(() => {
+          eventReceived = true;
           subscription.unsubscribe();
           resolve();
         });
@@ -192,12 +182,12 @@ describe('LISTEN/NOTIFY Integration Tests', () => {
     ]);
 
     const timeoutPromise = new Promise<void>((_, reject) =>
-      setTimeout(() => reject(new Error('Timeout waiting for notification')), 5000),
+      setTimeout(() => reject(new Error('Timeout waiting for event')), 5000),
     );
 
-    await Promise.race([notificationPromise, timeoutPromise]);
+    await Promise.race([eventPromise, timeoutPromise]);
 
-    expect(notificationReceived).toBe(true);
+    expect(eventReceived).toBe(true);
 
     const em = orm.em.fork();
     const transportEvents = await em.find(MikroOrmInboxOutboxTransportEvent, {
@@ -211,12 +201,12 @@ describe('LISTEN/NOTIFY Integration Tests', () => {
 
     const emitter = context.module.get(TransactionalEventEmitter);
 
-    const notifications: number[] = [];
+    const eventTimings: number[] = [];
     const startTime = Date.now();
 
     const subscription =
-      context.notificationListener.notifications$.subscribe(() => {
-        notifications.push(Date.now() - startTime);
+      context.eventListener.events$.subscribe(() => {
+        eventTimings.push(Date.now() - startTime);
       });
 
     const user = new User();
@@ -240,7 +230,7 @@ describe('LISTEN/NOTIFY Integration Tests', () => {
 
     subscription.unsubscribe();
 
-    expect(notifications.length).toBeGreaterThanOrEqual(1);
-    expect(notifications[0]).toBeLessThan(1000);
+    expect(eventTimings.length).toBeGreaterThanOrEqual(1);
+    expect(eventTimings[0]).toBeLessThan(1000);
   });
 });

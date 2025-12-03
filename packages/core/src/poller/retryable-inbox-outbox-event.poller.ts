@@ -6,7 +6,7 @@ import { InboxOutboxModuleOptions, MODULE_OPTIONS_TOKEN } from '../inbox-outbox.
 import { InboxOutboxTransportEvent } from '../model/inbox-outbox-transport-event.interface';
 import { INBOX_OUTBOX_EVENT_PROCESSOR_TOKEN, InboxOutboxEventProcessorContract } from '../processor/inbox-outbox-event-processor.contract';
 import { EventConfigurationResolver } from '../resolver/event-configuration.resolver';
-import { EVENT_NOTIFICATION_LISTENER_TOKEN, EventNotificationListener } from './event-notification-listener.interface';
+import { EVENT_LISTENER_TOKEN, EventListener } from './event-listener.interface';
 
 @Injectable()
 export class RetryableInboxOutboxEventPoller implements OnModuleInit, OnModuleDestroy {
@@ -21,25 +21,25 @@ export class RetryableInboxOutboxEventPoller implements OnModuleInit, OnModuleDe
     private transactionalEventEmitter: TransactionalEventEmitter,
     private eventConfigurationResolver: EventConfigurationResolver,
     @Inject(Logger) private logger: Logger,
-    @Optional() @Inject(EVENT_NOTIFICATION_LISTENER_TOKEN) private notificationListener?: EventNotificationListener,
+    @Optional() @Inject(EVENT_LISTENER_TOKEN) private eventListener?: EventListener,
   ) {}
 
   async onModuleInit() {
     this.logger.log(`Inbox options: retryEveryMilliseconds: ${this.options.retryEveryMilliseconds}, maxInboxOutboxTransportEventPerRetry: ${this.options.maxInboxOutboxTransportEventPerRetry}, events: ${JSON.stringify(this.options.events)}, driver: ${this.options.driverFactory.constructor.name}`);
 
-    if (this.notificationListener) {
+    if (this.eventListener) {
       try {
-        await this.notificationListener.connect();
-        this.logger.log('PostgreSQL LISTEN/NOTIFY enabled for instant event processing');
+        await this.eventListener.connect();
+        this.logger.log('Database event listener connected for instant event processing');
       } catch (error) {
-        this.logger.warn(`Failed to connect notification listener, falling back to polling only: ${error}`);
+        this.logger.warn(`Failed to connect event listener, falling back to polling only: ${error}`);
       }
     }
 
     const pollingSource$ = interval(this.options.retryEveryMilliseconds);
-    const notifySource$ = this.notificationListener?.notifications$ ?? EMPTY;
+    const eventSource$ = this.eventListener?.events$ ?? EMPTY;
 
-    this.subscription = merge(pollingSource$, notifySource$)
+    this.subscription = merge(pollingSource$, eventSource$)
       .pipe(
         concatMap(() => {
           if (this.isShuttingDown) {
@@ -66,11 +66,11 @@ export class RetryableInboxOutboxEventPoller implements OnModuleInit, OnModuleDe
       this.subscription = null;
     }
 
-    if (this.notificationListener) {
+    if (this.eventListener) {
       try {
-        await this.notificationListener.disconnect();
+        await this.eventListener.disconnect();
       } catch (error) {
-        this.logger.warn(`Error disconnecting notification listener: ${error}`);
+        this.logger.warn(`Error disconnecting event listener: ${error}`);
       }
     }
 
