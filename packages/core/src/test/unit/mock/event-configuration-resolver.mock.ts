@@ -1,5 +1,7 @@
+import { vi } from 'vitest';
+
 export const createMockedEventConfigurationResolver = () => {
     return {
-        resolve: jest.fn(),
+        resolve: vi.fn(),
     }
 }

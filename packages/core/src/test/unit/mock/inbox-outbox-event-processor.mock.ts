@@ -1,6 +1,7 @@
+import { vi } from 'vitest';
 
 export const createMockedInboxOutboxEventProcessor = () => {
     return {
-        process: jest.fn(),
+        process: vi.fn(),
     }
 }
