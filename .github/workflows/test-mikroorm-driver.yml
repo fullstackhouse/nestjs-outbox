@@ -51,6 +51,9 @@ jobs:
       - name: Build core package
         run: npm run build --workspace=@nestixis/nestjs-inbox-outbox
 
+      - name: Type check MikroORM driver
+        run: npm run build --workspace=@nestixis/nestjs-inbox-outbox-mikroorm-driver
+
       - name: Run MikroORM driver tests
         run: npm test --workspace=@nestixis/nestjs-inbox-outbox-mikroorm-driver
         env:
