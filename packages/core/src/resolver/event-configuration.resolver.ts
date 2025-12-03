@@ -15,6 +15,10 @@ export class EventConfigurationResolver implements OnModuleInit {
     }
 
     resolve(eventName: string): InboxOutboxModuleEventOptions {
-        return this.eventConfigurationsMap.get(eventName);
+        const config = this.eventConfigurationsMap.get(eventName);
+        if (!config) {
+            throw new Error(`Event configuration not found for event: ${eventName}`);
+        }
+        return config;
     }
 }
