@@ -61,6 +61,10 @@ export class TransactionalEventEmitter {
     persister.persist(inboxOutboxTransportEvent);
     await persister.flush();
 
+    if (eventOptions.immediateProcessing === false) {
+      return;
+    }
+
     if (awaitProcessor) {
       await this.inboxOutboxEventProcessor.process(eventOptions, inboxOutboxTransportEvent, this.getListeners(event.name));
       return;

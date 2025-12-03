@@ -285,4 +285,103 @@ describe('TransacationalEventEmitter', () => {
 
     expect(transactionalEventEmitter.getEventNames()).toContain('eventName');
   })
+
+  it('Should not call process when immediateProcessing is false', async () => {
+    inboxOutboxOptions.events = [
+      {
+        name: 'newEvent',
+        listeners: {
+          expiresAtTTL: 1000,
+          readyToRetryAfterTTL: 1000,
+          maxExecutionTimeTTL: 1000,
+        },
+        immediateProcessing: false,
+      },
+    ];
+
+    const transactionalEventEmitter = new TransactionalEventEmitter(inboxOutboxOptions, mockedDriverFactory, mockedInboxOutboxEventProcessor, mockedEventConfigurationResolver);
+
+    const newEvent = {
+      name: 'newEvent',
+    };
+
+    await transactionalEventEmitter.emit(newEvent, []);
+
+    expect(mockedDriver.persist).toHaveBeenCalledTimes(1);
+    expect(mockedDriver.flush).toHaveBeenCalled();
+    expect(mockedInboxOutboxEventProcessor.process).not.toHaveBeenCalled();
+  });
+
+  it('Should not call process when immediateProcessing is false with emitAsync', async () => {
+    inboxOutboxOptions.events = [
+      {
+        name: 'newEvent',
+        listeners: {
+          expiresAtTTL: 1000,
+          readyToRetryAfterTTL: 1000,
+          maxExecutionTimeTTL: 1000,
+        },
+        immediateProcessing: false,
+      },
+    ];
+
+    const transactionalEventEmitter = new TransactionalEventEmitter(inboxOutboxOptions, mockedDriverFactory, mockedInboxOutboxEventProcessor, mockedEventConfigurationResolver);
+
+    const newEvent = {
+      name: 'newEvent',
+    };
+
+    await transactionalEventEmitter.emitAsync(newEvent, []);
+
+    expect(mockedDriver.persist).toHaveBeenCalledTimes(1);
+    expect(mockedDriver.flush).toHaveBeenCalled();
+    expect(mockedInboxOutboxEventProcessor.process).not.toHaveBeenCalled();
+  });
+
+  it('Should call process when immediateProcessing is true', async () => {
+    inboxOutboxOptions.events = [
+      {
+        name: 'newEvent',
+        listeners: {
+          expiresAtTTL: 1000,
+          readyToRetryAfterTTL: 1000,
+          maxExecutionTimeTTL: 1000,
+        },
+        immediateProcessing: true,
+      },
+    ];
+
+    const transactionalEventEmitter = new TransactionalEventEmitter(inboxOutboxOptions, mockedDriverFactory, mockedInboxOutboxEventProcessor, mockedEventConfigurationResolver);
+
+    const newEvent = {
+      name: 'newEvent',
+    };
+
+    await transactionalEventEmitter.emit(newEvent, []);
+
+    expect(mockedInboxOutboxEventProcessor.process).toHaveBeenCalledTimes(1);
+  });
+
+  it('Should call process when immediateProcessing is undefined (default behavior)', async () => {
+    inboxOutboxOptions.events = [
+      {
+        name: 'newEvent',
+        listeners: {
+          expiresAtTTL: 1000,
+          readyToRetryAfterTTL: 1000,
+          maxExecutionTimeTTL: 1000,
+        },
+      },
+    ];
+
+    const transactionalEventEmitter = new TransactionalEventEmitter(inboxOutboxOptions, mockedDriverFactory, mockedInboxOutboxEventProcessor, mockedEventConfigurationResolver);
+
+    const newEvent = {
+      name: 'newEvent',
+    };
+
+    await transactionalEventEmitter.emit(newEvent, []);
+
+    expect(mockedInboxOutboxEventProcessor.process).toHaveBeenCalledTimes(1);
+  });
 });
