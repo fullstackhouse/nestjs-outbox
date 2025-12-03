@@ -7,7 +7,7 @@ MikroORM driver for [@nestixis/nestjs-inbox-outbox](../core).
 ## Features
 
 - **PostgreSQL & MySQL Support**: Works with PostgreSqlDriver and MySqlDriver
-- **PostgreSQL LISTEN/NOTIFY**: Real-time event delivery without polling latency (PostgreSQL only)
+- **PostgreSQL LISTEN/NOTIFY**: Real-time event delivery enabled by default (PostgreSQL only)
 
 ## Installation
 
@@ -89,39 +89,29 @@ export class AppModule {}
 
 ## PostgreSQL LISTEN/NOTIFY
 
-For near-instant event delivery without polling latency, enable PostgreSQL LISTEN/NOTIFY:
+LISTEN/NOTIFY is **enabled by default** when using PostgreSQL. The `MikroORMDatabaseDriverFactory` automatically creates a `PostgreSQLEventListener` that you can access via `getEventListener()`.
+
+### Configuration Options
 
 ```typescript
-import { MikroORM } from '@mikro-orm/core';
-import { InboxOutboxModule, EVENT_LISTENER_TOKEN } from '@nestixis/nestjs-inbox-outbox';
-import {
-  MikroORMDatabaseDriverFactory,
-  PostgreSQLEventListener,
-} from '@nestixis/nestjs-inbox-outbox-mikroorm-driver';
+// Default: LISTEN/NOTIFY enabled
+new MikroORMDatabaseDriverFactory(orm)
 
-@Module({
-  imports: [
-    InboxOutboxModule.registerAsync({
-      imports: [MikroOrmModule.forFeature([MikroOrmInboxOutboxTransportEvent])],
-      useFactory: (orm: MikroORM) => ({
-        driverFactory: new MikroORMDatabaseDriverFactory(orm),
-        events: [/* ... */],
-        retryEveryMilliseconds: 30_000,
-        maxInboxOutboxTransportEventPerRetry: 10,
-      }),
-      inject: [MikroORM],
-    }),
-  ],
-  providers: [
-    {
-      provide: EVENT_LISTENER_TOKEN,
-      useFactory: (orm: MikroORM) => new PostgreSQLEventListener(orm),
-      inject: [MikroORM],
-    },
-  ],
+// Custom options (channel name, reconnect delay)
+new MikroORMDatabaseDriverFactory(orm, {
+  listenNotify: {
+    channelName: 'my_custom_channel',
+    reconnectDelayMs: 10000,
+  },
 })
-export class AppModule {}
+
+// Disable LISTEN/NOTIFY (polling only)
+new MikroORMDatabaseDriverFactory(orm, {
+  listenNotify: { enabled: false },
+})
 ```
+
+### How It Works
 
 The `PostgreSQLEventListener`:
 - Uses PostgreSQL triggers to send notifications on event insert

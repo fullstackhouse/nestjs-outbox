@@ -1,5 +1,5 @@
 import 'reflect-metadata';
-import { describe, it, expect, beforeEach, afterEach } from 'vitest';
+import { describe, it, expect, afterEach } from 'vitest';
 import { Entity, PrimaryKey, Property, MikroORM } from '@mikro-orm/core';
 import { PostgreSqlDriver } from '@mikro-orm/postgresql';
 import { MikroOrmModule } from '@mikro-orm/nestjs';
@@ -12,10 +12,11 @@ import {
   IListener,
   InboxOutboxModule,
   EVENT_LISTENER_TOKEN,
+  EventListener,
 } from '@nestixis/nestjs-inbox-outbox';
 import { MikroOrmInboxOutboxTransportEvent } from '../model/mikroorm-inbox-outbox-transport-event.model';
 import { MikroORMDatabaseDriverFactory } from '../driver/mikroorm-database-driver.factory';
-import { PostgreSQLEventListener } from '../listener/postgresql-event-listener';
+import { getNotifyTriggerSQL } from '../listener/postgresql-event-listener';
 import {
   BASE_CONNECTION,
   createTestDatabase,
@@ -51,89 +52,75 @@ interface TestContext {
   orm: MikroORM;
   module: TestingModule;
   dbName: string;
-  eventListener: PostgreSQLEventListener;
+  driverFactory: MikroORMDatabaseDriverFactory;
 }
 
 async function createTestAppWithNotify(): Promise<TestContext> {
   const dbName = await createTestDatabase();
 
-  const mikroOrmModule = MikroOrmModule.forRoot({
+  const orm = await MikroORM.init({
     driver: PostgreSqlDriver,
     ...BASE_CONNECTION,
     dbName,
     entities: [MikroOrmInboxOutboxTransportEvent, User],
     allowGlobalContext: true,
   });
+  await orm.getSchemaGenerator().createSchema();
 
-  const inboxOutboxModule = InboxOutboxModule.registerAsync({
-    imports: [MikroOrmModule],
-    useFactory: (orm: MikroORM) => {
-      const driverFactory = new MikroORMDatabaseDriverFactory(orm);
-      return {
-        driverFactory,
-        events: [
-          {
-            name: 'UserCreated',
-            listeners: {
-              expiresAtTTL: 60000,
-              readyToRetryAfterTTL: 100,
-              maxExecutionTimeTTL: 30000,
-            },
-          },
-        ],
-        retryEveryMilliseconds: 60000,
-        maxInboxOutboxTransportEventPerRetry: 100,
-      };
-    },
-    inject: [MikroORM],
-    isGlobal: true,
-  });
+  const driverFactory = new MikroORMDatabaseDriverFactory(orm);
 
   const testingModule = await Test.createTestingModule({
-    imports: [mikroOrmModule, inboxOutboxModule],
+    imports: [
+      InboxOutboxModule.registerAsync({
+        useFactory: () => ({
+          driverFactory,
+          events: [
+            {
+              name: 'UserCreated',
+              listeners: {
+                expiresAtTTL: 60000,
+                readyToRetryAfterTTL: 100,
+                maxExecutionTimeTTL: 30000,
+              },
+            },
+          ],
+          retryEveryMilliseconds: 60000,
+          maxInboxOutboxTransportEventPerRetry: 100,
+        }),
+        isGlobal: true,
+      }),
+    ],
+    providers: [{ provide: MikroORM, useValue: orm }],
   }).compile();
 
   const app = testingModule.createNestApplication();
   await app.init();
 
-  const orm = testingModule.get(MikroORM);
-  const generator = orm.getSchemaGenerator();
-  await generator.createSchema();
-
+  const triggerSQL = getNotifyTriggerSQL();
   const pgClient = new Client({
     ...BASE_CONNECTION,
     database: dbName,
   });
   await pgClient.connect();
-  await pgClient.query(`
-    CREATE OR REPLACE FUNCTION notify_inbox_outbox_event() RETURNS TRIGGER AS $$
-    BEGIN
-      PERFORM pg_notify('inbox_outbox_event', NEW.id::text);
-      RETURN NEW;
-    END;
-    $$ LANGUAGE plpgsql;
-  `);
-  await pgClient.query(`
-    CREATE TRIGGER inbox_outbox_event_notify
-      AFTER INSERT ON inbox_outbox_transport_event
-      FOR EACH ROW EXECUTE FUNCTION notify_inbox_outbox_event();
-  `);
+  await pgClient.query(triggerSQL.createFunction);
+  await pgClient.query(triggerSQL.createTrigger);
   await pgClient.end();
 
-  const eventListener = new PostgreSQLEventListener(orm);
-  await eventListener.connect();
+  const eventListener = driverFactory.getEventListener();
+  await eventListener?.connect();
 
   return {
     app,
     orm,
     module: testingModule,
     dbName,
-    eventListener,
+    driverFactory,
   };
 }
 
 async function cleanupTestAppWithNotify(context: TestContext): Promise<void> {
-  await context.eventListener.disconnect();
+  const eventListener = context.driverFactory.getEventListener();
+  await eventListener?.disconnect();
   await context.app.close();
   await context.orm.close();
   await dropTestDatabase(context.dbName);
@@ -152,16 +139,16 @@ describe('LISTEN/NOTIFY Integration Tests', () => {
     context = await createTestAppWithNotify();
 
     const emitter = context.module.get(TransactionalEventEmitter);
+    const eventListener = context.module.get<EventListener>(EVENT_LISTENER_TOKEN);
     const orm = context.orm;
 
     let eventReceived = false;
     const eventPromise = new Promise<void>((resolve) => {
-      const subscription =
-        context.eventListener.events$.subscribe(() => {
-          eventReceived = true;
-          subscription.unsubscribe();
-          resolve();
-        });
+      const subscription = eventListener.events$.subscribe(() => {
+        eventReceived = true;
+        subscription.unsubscribe();
+        resolve();
+      });
     });
 
     const user = new User();
@@ -200,14 +187,14 @@ describe('LISTEN/NOTIFY Integration Tests', () => {
     context = await createTestAppWithNotify();
 
     const emitter = context.module.get(TransactionalEventEmitter);
+    const eventListener = context.module.get<EventListener>(EVENT_LISTENER_TOKEN);
 
     const eventTimings: number[] = [];
     const startTime = Date.now();
 
-    const subscription =
-      context.eventListener.events$.subscribe(() => {
-        eventTimings.push(Date.now() - startTime);
-      });
+    const subscription = eventListener.events$.subscribe(() => {
+      eventTimings.push(Date.now() - startTime);
+    });
 
     const user = new User();
     user.email = 'fast@example.com';
@@ -232,5 +219,14 @@ describe('LISTEN/NOTIFY Integration Tests', () => {
 
     expect(eventTimings.length).toBeGreaterThanOrEqual(1);
     expect(eventTimings[0]).toBeLessThan(1000);
+  });
+
+  it('should get event listener from factory via getEventListener()', async () => {
+    context = await createTestAppWithNotify();
+
+    const eventListener = context.driverFactory.getEventListener();
+
+    expect(eventListener).not.toBeNull();
+    expect(eventListener).toBe(context.module.get<EventListener>(EVENT_LISTENER_TOKEN));
   });
 });

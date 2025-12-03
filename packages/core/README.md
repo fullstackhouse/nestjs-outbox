@@ -201,16 +201,12 @@ export class AppModule {}
 
 ## PostgreSQL LISTEN/NOTIFY (MikroORM)
 
-For near-instant event delivery without polling latency, enable PostgreSQL LISTEN/NOTIFY:
+LISTEN/NOTIFY is **enabled by default** when using the MikroORM driver with PostgreSQL. Just use `MikroORMDatabaseDriverFactory` and the module handles everything automatically:
 
 ```typescript
 import { MikroORM } from '@mikro-orm/core';
-import { InboxOutboxModule, EVENT_LISTENER_TOKEN } from '@nestixis/nestjs-inbox-outbox';
-import {
-  MikroORMDatabaseDriverFactory,
-  PostgreSQLEventListener,
-  InboxOutboxMigrations,
-} from '@nestixis/nestjs-inbox-outbox-mikroorm-driver';
+import { InboxOutboxModule } from '@nestixis/nestjs-inbox-outbox';
+import { MikroORMDatabaseDriverFactory } from '@nestixis/nestjs-inbox-outbox-mikroorm-driver';
 
 @Module({
   imports: [
@@ -225,15 +221,14 @@ import {
       inject: [MikroORM],
     }),
   ],
-  providers: [
-    {
-      provide: EVENT_LISTENER_TOKEN,
-      useFactory: (orm: MikroORM) => new PostgreSQLEventListener(orm),
-      inject: [MikroORM],
-    },
-  ],
 })
 export class AppModule {}
+```
+
+To disable LISTEN/NOTIFY and use polling only:
+
+```typescript
+new MikroORMDatabaseDriverFactory(orm, { listenNotify: { enabled: false } })
 ```
 
 The `PostgreSQLEventListener`:

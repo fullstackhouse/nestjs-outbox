@@ -5,6 +5,7 @@ import { TransactionalEventEmitter } from './emitter/transactional-event-emitter
 import { EventValidator } from './event-validator/event.validator';
 import { ASYNC_OPTIONS_TYPE, ConfigurableModuleClass, InboxOutboxModuleOptions, MODULE_OPTIONS_TOKEN } from './inbox-outbox.module-definition';
 import { ListenerDiscovery } from './listener/discovery/listener.discovery';
+import { EVENT_LISTENER_TOKEN } from './poller/event-listener.interface';
 import { RetryableInboxOutboxEventPoller } from './poller/retryable-inbox-outbox-event.poller';
 import { INBOX_OUTBOX_EVENT_PROCESSOR_TOKEN } from './processor/inbox-outbox-event-processor.contract';
 import { InboxOutboxEventProcessor } from './processor/inbox-outbox-event.processor';
@@ -51,6 +52,13 @@ export class InboxOutboxModule extends ConfigurableModuleClass {
           provide: DATABASE_DRIVER_FACTORY_TOKEN,
           useFactory: async (options: InboxOutboxModuleOptions) => {
             return options.driverFactory;
+          },
+          inject: [MODULE_OPTIONS_TOKEN],
+        } as Provider<any>,
+        {
+          provide: EVENT_LISTENER_TOKEN,
+          useFactory: async (options: InboxOutboxModuleOptions) => {
+            return options.driverFactory.getEventListener?.() ?? null;
           },
           inject: [MODULE_OPTIONS_TOKEN],
         } as Provider<any>,

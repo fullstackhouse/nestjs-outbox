@@ -6,6 +6,7 @@ import { EventConfigurationResolverContract } from '@nestixis/nestjs-inbox-outbo
 import { MikroOrmInboxOutboxTransportEvent } from '../model/mikroorm-inbox-outbox-transport-event.model';
 import { MikroORMDatabaseDriverFactory } from '../driver/mikroorm-database-driver.factory';
 import { MikroORMDatabaseDriver } from '../driver/mikroorm.database-driver';
+import { PostgreSQLEventListener } from '../listener/postgresql-event-listener';
 import { createTestDatabase, dropTestDatabase } from './test-utils';
 
 describe('MikroORMDatabaseDriverFactory', () => {
@@ -114,6 +115,37 @@ describe('MikroORMDatabaseDriverFactory', () => {
       expect(events).toHaveLength(5);
       const indices = events.map(e => e.eventPayload.index).sort();
       expect(indices).toEqual([0, 1, 2, 3, 4]);
+    });
+  });
+
+  describe('getEventListener', () => {
+    it('should return PostgreSQLEventListener by default', () => {
+      const factory = new MikroORMDatabaseDriverFactory(orm);
+      const listener = factory.getEventListener();
+
+      expect(listener).toBeInstanceOf(PostgreSQLEventListener);
+    });
+
+    it('should return PostgreSQLEventListener with custom options', () => {
+      const factory = new MikroORMDatabaseDriverFactory(orm, {
+        listenNotify: {
+          channelName: 'custom_channel',
+          reconnectDelayMs: 10000,
+        },
+      });
+      const listener = factory.getEventListener() as PostgreSQLEventListener;
+
+      expect(listener).toBeInstanceOf(PostgreSQLEventListener);
+      expect(listener.channelName).toBe('custom_channel');
+    });
+
+    it('should return null when disabled', () => {
+      const factory = new MikroORMDatabaseDriverFactory(orm, {
+        listenNotify: { enabled: false },
+      });
+      const listener = factory.getEventListener();
+
+      expect(listener).toBeNull();
     });
   });
 });
