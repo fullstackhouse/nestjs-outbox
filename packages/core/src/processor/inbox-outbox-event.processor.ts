@@ -55,7 +55,10 @@ export class InboxOutboxEventProcessor implements InboxOutboxEventProcessorContr
 
       try {
         timeoutTimer = setTimeout(() => {
-          this.logger.error(`Listener ${listener.getName()} has been timed out`);
+          this.logger.error(
+            `Listener ${listener.getName()} has been timed out`,
+            this.buildEventContext(inboxOutboxTransportEvent),
+          );
           resolve({
             listenerName: listener.getName(),
             hasFailed: true,
@@ -78,5 +81,19 @@ export class InboxOutboxEventProcessor implements InboxOutboxEventProcessorContr
         });
       }
     });
+  }
+
+  private buildEventContext(event: InboxOutboxTransportEvent): Record<string, unknown> {
+    const MAX_PAYLOAD_LENGTH = 200;
+    const payloadString = JSON.stringify(event.eventPayload);
+    const truncatedPayload = payloadString.length > MAX_PAYLOAD_LENGTH
+      ? payloadString.substring(0, MAX_PAYLOAD_LENGTH) + '...'
+      : payloadString;
+
+    return {
+      eventId: event.id,
+      eventName: event.eventName,
+      payload: truncatedPayload,
+    };
   }
 }
