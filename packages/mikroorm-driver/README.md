@@ -109,6 +109,11 @@ new MikroORMDatabaseDriverFactory(orm, {
 new MikroORMDatabaseDriverFactory(orm, {
   listenNotify: { enabled: false },
 })
+
+// Enable AsyncLocalStorage context (for @Transactional() decorator)
+new MikroORMDatabaseDriverFactory(orm, {
+  useContext: true,
+})
 ```
 
 ### How It Works
@@ -118,6 +123,55 @@ The `PostgreSQLEventListener`:
 - Automatically reconnects on connection failures (configurable delay, default 5s)
 - Works alongside polling as a fallback mechanism
 - Requires the LISTEN/NOTIFY migration from `InboxOutboxMigrations`
+
+## @Transactional() Decorator Support
+
+The driver supports MikroORM's `@Transactional()` decorator via AsyncLocalStorage context propagation. Enable `useContext: true` to participate in the same transaction:
+
+```typescript
+// Module setup
+InboxOutboxModule.registerAsync({
+  imports: [MikroOrmModule],
+  useFactory: (orm: MikroORM) => ({
+    driverFactory: new MikroORMDatabaseDriverFactory(orm, {
+      useContext: true, // Enable context propagation
+    }),
+    events: [...],
+    retryEveryMilliseconds: 30_000,
+    maxInboxOutboxTransportEventPerRetry: 10,
+  }),
+  inject: [MikroORM],
+}),
+```
+
+```typescript
+// Service using @Transactional()
+import { Transactional } from '@mikro-orm/core';
+
+@Injectable()
+export class OrderService {
+  constructor(
+    private em: EntityManager,
+    private emitter: TransactionalEventEmitter,
+  ) {}
+
+  @Transactional()
+  async createOrder(data: CreateOrderInput) {
+    const order = this.em.create(Order, data);
+    this.em.persist(order);
+
+    // Event is persisted in the same transaction
+    await this.emitter.emitAsync(new OrderCreatedEvent(order.id));
+
+    return order;
+  }
+}
+```
+
+With `useContext: true`:
+- Event persistence participates in the `@Transactional()` transaction
+- Rollbacks affect both business data and events atomically
+- No `em.clear()` after flush (preserves shared identity map)
 
 ## Supported Databases
 

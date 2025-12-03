@@ -1,10 +1,20 @@
 import { EntityManager, LockMode } from '@mikro-orm/core';
 import { DatabaseDriver, EventConfigurationResolverContract, InboxOutboxTransportEvent } from '@nestixis/nestjs-inbox-outbox';
 import { MikroOrmInboxOutboxTransportEvent } from '../model/mikroorm-inbox-outbox-transport-event.model';
-  
+
+export interface MikroORMDatabaseDriverOptions {
+  clearAfterFlush?: boolean;
+}
+
 export class MikroORMDatabaseDriver implements DatabaseDriver {
+  private readonly clearAfterFlush: boolean;
+
   constructor(
-    private readonly em: EntityManager, private readonly eventConfigurationResolver: EventConfigurationResolverContract) {
+    private readonly em: EntityManager,
+    private readonly eventConfigurationResolver: EventConfigurationResolverContract,
+    options?: MikroORMDatabaseDriverOptions,
+  ) {
+    this.clearAfterFlush = options?.clearAfterFlush ?? true;
   }
 
   async findAndExtendReadyToRetryEvents(limit: number): Promise<InboxOutboxTransportEvent[]> {
@@ -40,7 +50,9 @@ export class MikroORMDatabaseDriver implements DatabaseDriver {
 
   async flush(): Promise<void> {
     await this.em.flush();
-    this.em.clear();
+    if (this.clearAfterFlush) {
+      this.em.clear();
+    }
   }
 
   createInboxOutboxTransportEvent(eventName: string, eventPayload: any, expireAt: number, readyToRetryAfter: number | null): InboxOutboxTransportEvent {

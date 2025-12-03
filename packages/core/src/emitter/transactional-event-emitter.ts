@@ -78,7 +78,7 @@ export class TransactionalEventEmitter {
     entities: {
       operation: TransactionalEventEmitterOperations;
       entity: object;
-    }[],
+    }[] = [],
     customDatabaseDriverPersister?: DatabaseDriverPersister,
   ): Promise<void> {
     return this.emitInternal(event, entities, customDatabaseDriverPersister, false);
@@ -89,7 +89,7 @@ export class TransactionalEventEmitter {
     entities: {
       operation: TransactionalEventEmitterOperations;
       entity: object;
-    }[],
+    }[] = [],
     customDatabaseDriverPersister?: DatabaseDriverPersister,
   ): Promise<void> {
     return this.emitInternal(event, entities, customDatabaseDriverPersister, true);

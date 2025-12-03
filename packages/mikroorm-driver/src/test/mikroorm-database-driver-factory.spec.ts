@@ -118,6 +118,40 @@ describe('MikroORMDatabaseDriverFactory', () => {
     });
   });
 
+  describe('useContext option', () => {
+    it('should use forked EntityManager when useContext is false (default)', () => {
+      const factory = new MikroORMDatabaseDriverFactory(orm);
+      const driver = factory.create(createEventConfigResolver());
+
+      expect(driver).toBeInstanceOf(MikroORMDatabaseDriver);
+    });
+
+    it('should use context EntityManager when useContext is true', () => {
+      const factory = new MikroORMDatabaseDriverFactory(orm, {
+        useContext: true,
+      });
+      const driver = factory.create(createEventConfigResolver());
+
+      expect(driver).toBeInstanceOf(MikroORMDatabaseDriver);
+    });
+
+    it('should support combining useContext with listenNotify options', () => {
+      const factory = new MikroORMDatabaseDriverFactory(orm, {
+        useContext: true,
+        listenNotify: {
+          channelName: 'custom_channel',
+        },
+      });
+
+      const driver = factory.create(createEventConfigResolver());
+      const listener = factory.getEventListener() as PostgreSQLEventListener;
+
+      expect(driver).toBeInstanceOf(MikroORMDatabaseDriver);
+      expect(listener).toBeInstanceOf(PostgreSQLEventListener);
+      expect(listener.channelName).toBe('custom_channel');
+    });
+  });
+
   describe('getEventListener', () => {
     it('should return PostgreSQLEventListener by default', () => {
       const factory = new MikroORMDatabaseDriverFactory(orm);

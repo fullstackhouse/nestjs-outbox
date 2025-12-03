@@ -20,6 +20,7 @@ export interface TestAppConfig {
   retryEveryMilliseconds?: number;
   maxInboxOutboxTransportEventPerRetry?: number;
   databaseType?: DatabaseType;
+  useContext?: boolean;
 }
 
 export interface TestContext {
@@ -112,7 +113,9 @@ export async function createTestApp(config: TestAppConfig): Promise<TestContext>
   const inboxOutboxModule = InboxOutboxModule.registerAsync({
     imports: [MikroOrmModule],
     useFactory: (orm: MikroORM) => {
-      const driverFactory = new MikroORMDatabaseDriverFactory(orm);
+      const driverFactory = new MikroORMDatabaseDriverFactory(orm, {
+        useContext: config.useContext,
+      });
       return {
         driverFactory,
         events: config.events,
