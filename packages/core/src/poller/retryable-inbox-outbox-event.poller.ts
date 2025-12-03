@@ -30,7 +30,7 @@ export class RetryableInboxOutboxEventPoller implements OnModuleInit, OnModuleDe
     if (this.eventListener) {
       try {
         await this.eventListener.connect();
-        this.logger.log('Database event listener connected for instant event processing');
+        this.logger.log('Event listener connected for instant event processing');
       } catch (error) {
         this.logger.warn(`Failed to connect event listener, falling back to polling only: ${error}`);
       }
