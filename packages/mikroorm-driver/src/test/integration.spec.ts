@@ -411,4 +411,105 @@ describe('Integration Tests', () => {
       expect(transportEvents[0].expireAt).toBeGreaterThanOrEqual(beforeEmit + 60000);
     });
   });
+
+  describe('immediateProcessing configuration', () => {
+    it('should not process event immediately when immediateProcessing is false, but process via poller', async () => {
+      context = await createTestApp({
+        events: [
+          {
+            name: 'UserCreated',
+            listeners: {
+              expiresAtTTL: 60000,
+              readyToRetryAfterTTL: 50,
+              maxExecutionTimeTTL: 30000,
+            },
+            immediateProcessing: false,
+          },
+        ],
+        additionalEntities: [User],
+        retryEveryMilliseconds: 100,
+        maxInboxOutboxTransportEventPerRetry: 10,
+      });
+
+      const emitter = context.module.get(TransactionalEventEmitter);
+      const orm = context.orm;
+
+      const handledEvents: UserCreatedEvent[] = [];
+      const listener: IListener<UserCreatedEvent> = {
+        getName: () => 'ImmediateProcessingListener',
+        handle: async (event: UserCreatedEvent) => {
+          handledEvents.push(event);
+        },
+      };
+      emitter.addListener('UserCreated', listener);
+
+      const user = new User();
+      user.email = 'deferred@example.com';
+      user.name = 'Deferred User';
+
+      const event = new UserCreatedEvent(1, 'deferred@example.com');
+
+      await emitter.emitAsync(event, [{ operation: 'persist' as const, entity: user }]);
+
+      expect(handledEvents).toHaveLength(0);
+
+      const em = orm.em.fork();
+      const transportEvents = await em.find(MikroOrmInboxOutboxTransportEvent, { eventName: 'UserCreated' });
+      expect(transportEvents).toHaveLength(1);
+
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      expect(handledEvents).toHaveLength(1);
+      expect(handledEvents[0]).toMatchObject({
+        name: 'UserCreated',
+        userId: 1,
+        email: 'deferred@example.com',
+      });
+    });
+
+    it('should process event immediately when immediateProcessing is true (default)', async () => {
+      context = await createTestApp({
+        events: [
+          {
+            name: 'UserCreated',
+            listeners: {
+              expiresAtTTL: 60000,
+              readyToRetryAfterTTL: 5000,
+              maxExecutionTimeTTL: 30000,
+            },
+            immediateProcessing: true,
+          },
+        ],
+        additionalEntities: [User],
+        retryEveryMilliseconds: 10000,
+        maxInboxOutboxTransportEventPerRetry: 10,
+      });
+
+      const emitter = context.module.get(TransactionalEventEmitter);
+
+      const handledEvents: UserCreatedEvent[] = [];
+      const listener: IListener<UserCreatedEvent> = {
+        getName: () => 'ImmediateListener',
+        handle: async (event: UserCreatedEvent) => {
+          handledEvents.push(event);
+        },
+      };
+      emitter.addListener('UserCreated', listener);
+
+      const user = new User();
+      user.email = 'immediate@example.com';
+      user.name = 'Immediate User';
+
+      const event = new UserCreatedEvent(1, 'immediate@example.com');
+
+      await emitter.emitAsync(event, [{ operation: 'persist' as const, entity: user }]);
+
+      expect(handledEvents).toHaveLength(1);
+      expect(handledEvents[0]).toMatchObject({
+        name: 'UserCreated',
+        userId: 1,
+        email: 'immediate@example.com',
+      });
+    });
+  });
 });
