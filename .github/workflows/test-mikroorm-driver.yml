@@ -2,7 +2,6 @@ name: Test MikroORM Driver
 
 on:
   push:
-    branches: [main]
     paths:
       - 'packages/mikroorm-driver/**'
       - 'packages/core/**'
@@ -10,7 +9,6 @@ on:
       - 'package-lock.json'
       - '.github/workflows/test-mikroorm-driver.yml'
   pull_request:
-    branches: [main]
     paths:
       - 'packages/mikroorm-driver/**'
       - 'packages/core/**'
