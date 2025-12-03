@@ -8,7 +8,7 @@ A NestJS module implementing the [Transactional Outbox Pattern](https://microser
 
 - **Atomic Operations**: Database changes and events are persisted in a single transaction
 - **Guaranteed Delivery**: Polling mechanism ensures events are delivered even after crashes
-- **PostgreSQL LISTEN/NOTIFY**: Real-time event delivery without polling latency (MikroORM)
+- **PostgreSQL LISTEN/NOTIFY**: Real-time event delivery without polling latency (MikroORM + PostgreSQL only)
 - **Graceful Shutdown**: In-flight events complete before application terminates
 - **Multiple ORMs**: TypeORM and MikroORM drivers included
 - **Flexible Processing**: Immediate or deferred event processing per event type
