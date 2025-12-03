@@ -3,6 +3,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import { Entity, PrimaryKey, Property, MikroORM } from '@mikro-orm/core';
 import {
   TransactionalEventEmitter,
+  TransactionalEventEmitterOperations,
   InboxOutboxEvent,
   IListener,
 } from '@nestixis/nestjs-inbox-outbox';
@@ -95,7 +96,7 @@ describe('Integration Tests', () => {
 
       const event = new UserCreatedEvent(1, 'test@example.com');
 
-      await emitter.emitAsync(event, [{ operation: 'persist' as const, entity: user }]);
+      await emitter.emitAsync(event, [{ operation: TransactionalEventEmitterOperations.persist, entity: user }]);
 
       const em = orm.em.fork();
       const users = await em.find(User, {});
@@ -129,7 +130,7 @@ describe('Integration Tests', () => {
 
       const event = new UserCreatedEvent(2, 'atomic@example.com');
 
-      await emitter.emitAsync(event, [{ operation: 'persist' as const, entity: user }]);
+      await emitter.emitAsync(event, [{ operation: TransactionalEventEmitterOperations.persist, entity: user }]);
 
       const em = orm.em.fork();
       const users = await em.find(User, { email: 'atomic@example.com' });
@@ -153,8 +154,8 @@ describe('Integration Tests', () => {
       const event = new UserCreatedEvent(1, 'user1@example.com');
 
       await emitter.emit(event, [
-        { operation: 'persist' as const, entity: user1 },
-        { operation: 'persist' as const, entity: user2 },
+        { operation: TransactionalEventEmitterOperations.persist, entity: user1 },
+        { operation: TransactionalEventEmitterOperations.persist, entity: user2 },
       ]);
 
       await new Promise(resolve => setTimeout(resolve, 100));
@@ -193,7 +194,7 @@ describe('Integration Tests', () => {
       const userToDelete = await checkEm.findOne(User, { id: userId });
 
       const event = new UserDeletedEvent(userId);
-      await emitter.emitAsync(event, [{ operation: 'remove' as const, entity: userToDelete! }]);
+      await emitter.emitAsync(event, [{ operation: TransactionalEventEmitterOperations.remove, entity: userToDelete! }]);
 
       const finalEm = orm.em.fork();
       const deletedUser = await finalEm.findOne(User, { id: userId });
@@ -232,7 +233,7 @@ describe('Integration Tests', () => {
 
       const event = new UserCreatedEvent(1, 'listener@example.com');
 
-      await emitter.emitAsync(event, [{ operation: 'persist' as const, entity: user }]);
+      await emitter.emitAsync(event, [{ operation: TransactionalEventEmitterOperations.persist, entity: user }]);
 
       expect(handledEvents).toHaveLength(1);
       expect(handledEvents[0].email).toBe('listener@example.com');
@@ -303,7 +304,7 @@ describe('Integration Tests', () => {
 
       const event = new UserCreatedEvent(1, 'multi@example.com');
 
-      await emitter.emitAsync(event, [{ operation: 'persist' as const, entity: user }]);
+      await emitter.emitAsync(event, [{ operation: TransactionalEventEmitterOperations.persist, entity: user }]);
 
       expect(results).toContain('listener1');
       expect(results).toContain('listener2');
@@ -374,7 +375,7 @@ describe('Integration Tests', () => {
       const beforeEmit = Date.now();
       const event = new UserCreatedEvent(1, 'retry@example.com');
 
-      await emitter.emitAsync(event, [{ operation: 'persist' as const, entity: user }]);
+      await emitter.emitAsync(event, [{ operation: TransactionalEventEmitterOperations.persist, entity: user }]);
 
       const em = orm.em.fork();
       const transportEvents = await em.find(MikroOrmInboxOutboxTransportEvent, { eventName: 'UserCreated' });
@@ -402,7 +403,7 @@ describe('Integration Tests', () => {
       const beforeEmit = Date.now();
       const event = new UserCreatedEvent(1, 'expire@example.com');
 
-      await emitter.emitAsync(event, [{ operation: 'persist' as const, entity: user }]);
+      await emitter.emitAsync(event, [{ operation: TransactionalEventEmitterOperations.persist, entity: user }]);
 
       const em = orm.em.fork();
       const transportEvents = await em.find(MikroOrmInboxOutboxTransportEvent, { eventName: 'UserCreated' });
