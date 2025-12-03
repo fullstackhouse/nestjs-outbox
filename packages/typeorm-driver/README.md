@@ -1,6 +1,12 @@
-# NestJS Inbox Outbox MikroORM Driver
+# NestJS Inbox Outbox TypeORM Driver
 
-This package provides a driver for the NestJS Inbox Outbox library that uses TypeORM to interact with the database.
+[![npm version](https://badge.fury.io/js/%40nestixis%2Fnestjs-inbox-outbox-typeorm-driver.svg)](https://www.npmjs.com/package/@nestixis/nestjs-inbox-outbox-typeorm-driver)
+
+TypeORM driver for [@nestixis/nestjs-inbox-outbox](../core).
+
+## Features
+
+- **PostgreSQL & MySQL Support**: Works with postgres and mysql drivers
 
 ## Installation
 
@@ -8,16 +14,10 @@ This package provides a driver for the NestJS Inbox Outbox library that uses Typ
 npm install @nestixis/nestjs-inbox-outbox-typeorm-driver
 ```
 
-## Compatibile know TypeORM drivers
-- postgres
-- mysql
-
-## Registration example
+## Quick Start
 
 ```typescript
-import {
-  InboxOutboxModule
-} from '@nestixis/nestjs-inbox-outbox';
+import { InboxOutboxModule } from '@nestixis/nestjs-inbox-outbox';
 import {
   InboxOutboxTransportEventMigrations,
   TypeORMDatabaseDriverFactory,
@@ -26,8 +26,6 @@ import {
 import { Module } from '@nestjs/common';
 import { TypeOrmModule } from '@nestjs/typeorm';
 import { DataSource } from 'typeorm';
-import { Cat } from './cat.model';
-import { NewCatEvent } from './new-cat.event';
 
 @Module({
   imports: [
@@ -40,36 +38,39 @@ import { NewCatEvent } from './new-cat.event';
       database: 'inbox_outbox',
       entities: [TypeOrmInboxOutboxTransportEvent],
       migrations: [...InboxOutboxTransportEventMigrations],
-      logging: true,
       migrationsRun: true,
     }),
     InboxOutboxModule.registerAsync({
-      imports: [
-        TypeOrmModule.forFeature([TypeOrmInboxOutboxTransportEvent, Cat]),
-      ],
-      useFactory: (dataSource: DataSource) => {
-        const driverFactory = new TypeORMDatabaseDriverFactory(dataSource);
-        return {
-          driverFactory: driverFactory,
-          events: [
-            {
-              name: NewCatEvent.name,
-              listeners: {
-                expiresAtTTL: 1000 * 60 * 60 * 24,
-                maxExecutionTimeTTL: 1000 * 60 * 60 * 24,
-                readyToRetryAfterTTL: 10000,
-              },
+      imports: [TypeOrmModule.forFeature([TypeOrmInboxOutboxTransportEvent])],
+      useFactory: (dataSource: DataSource) => ({
+        driverFactory: new TypeORMDatabaseDriverFactory(dataSource),
+        events: [
+          {
+            name: 'OrderCreatedEvent',
+            listeners: {
+              expiresAtTTL: 1000 * 60 * 60 * 24,     // 24 hours
+              maxExecutionTimeTTL: 1000 * 15,        // 15 seconds
+              readyToRetryAfterTTL: 10000,           // 10 seconds
             },
-          ],
-          retryEveryMilliseconds: 1000,
-          maxInboxOutboxTransportEventPerRetry: 10,
-        };
-      },
+          },
+        ],
+        retryEveryMilliseconds: 30_000,
+        maxInboxOutboxTransportEventPerRetry: 10,
+      }),
       inject: [DataSource],
     }),
   ],
-  providers: [],
 })
 export class AppModule {}
-
 ```
+
+## Supported Databases
+
+| Database   | Real-time Support |
+|------------|-------------------|
+| PostgreSQL | Polling only      |
+| MySQL      | Polling only      |
+
+## License
+
+MIT
