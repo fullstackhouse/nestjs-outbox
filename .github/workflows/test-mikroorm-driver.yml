@@ -50,6 +50,9 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
+      - name: Build core package
+        run: npm run build --workspace=@nestixis/nestjs-inbox-outbox
+
       - name: Run MikroORM driver tests
         run: npm test --workspace=@nestixis/nestjs-inbox-outbox-mikroorm-driver
         env:
