@@ -49,7 +49,6 @@ export class RetryableInboxOutboxEventPoller implements OnModuleInit, OnModuleDe
         }),
         catchError((exception) => {
           this.logger.error(exception);
-          console.error(exception);
           return EMPTY;
         }),
         repeat(),
@@ -99,7 +98,6 @@ export class RetryableInboxOutboxEventPoller implements OnModuleInit, OnModuleDe
       }
     } catch (exception) {
       this.logger.error(exception);
-      console.error(exception);
     }
   }
 
