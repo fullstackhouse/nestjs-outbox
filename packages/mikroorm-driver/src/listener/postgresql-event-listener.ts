@@ -4,7 +4,37 @@ import { EventListener } from '@nestixis/nestjs-inbox-outbox';
 import { Client, Notification } from 'pg';
 import { Observable, Subject } from 'rxjs';
 
-export const POSTGRESQL_EVENT_CHANNEL = 'inbox_outbox_event';
+export const DEFAULT_POSTGRESQL_EVENT_CHANNEL = 'inbox_outbox_event';
+
+export interface PostgreSQLEventListenerOptions {
+  reconnectDelayMs?: number;
+  channelName?: string;
+}
+
+export function getNotifyTriggerSQL(channelName: string = DEFAULT_POSTGRESQL_EVENT_CHANNEL): {
+  createFunction: string;
+  createTrigger: string;
+  dropTrigger: string;
+  dropFunction: string;
+} {
+  return {
+    createFunction: `
+      CREATE OR REPLACE FUNCTION notify_inbox_outbox_event() RETURNS TRIGGER AS $$
+      BEGIN
+        PERFORM pg_notify('${channelName}', NEW.id::text);
+        RETURN NEW;
+      END;
+      $$ LANGUAGE plpgsql;
+    `,
+    createTrigger: `
+      CREATE TRIGGER inbox_outbox_event_notify
+        AFTER INSERT ON inbox_outbox_transport_event
+        FOR EACH ROW EXECUTE FUNCTION notify_inbox_outbox_event();
+    `,
+    dropTrigger: 'DROP TRIGGER IF EXISTS inbox_outbox_event_notify ON inbox_outbox_transport_event;',
+    dropFunction: 'DROP FUNCTION IF EXISTS notify_inbox_outbox_event();',
+  };
+}
 
 export class PostgreSQLEventListener implements EventListener {
   private readonly logger = new Logger(PostgreSQLEventListener.name);
@@ -12,11 +42,16 @@ export class PostgreSQLEventListener implements EventListener {
   private eventsSubject = new Subject<string>();
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private isConnecting = false;
+  private readonly reconnectDelayMs: number;
+  readonly channelName: string;
 
   constructor(
     private readonly orm: MikroORM,
-    private readonly reconnectDelayMs = 5000,
-  ) {}
+    options: PostgreSQLEventListenerOptions = {},
+  ) {
+    this.reconnectDelayMs = options.reconnectDelayMs ?? 5000;
+    this.channelName = options.channelName ?? DEFAULT_POSTGRESQL_EVENT_CHANNEL;
+  }
 
   get events$(): Observable<string> {
     return this.eventsSubject.asObservable();
@@ -41,7 +76,7 @@ export class PostgreSQLEventListener implements EventListener {
       });
 
       this.client.on('notification', (msg: Notification) => {
-        if (msg.channel === POSTGRESQL_EVENT_CHANNEL) {
+        if (msg.channel === this.channelName) {
           this.eventsSubject.next(msg.payload ?? '');
         }
       });
@@ -57,7 +92,7 @@ export class PostgreSQLEventListener implements EventListener {
       });
 
       await this.client.connect();
-      await this.client.query(`LISTEN ${POSTGRESQL_EVENT_CHANNEL}`);
+      await this.client.query(`LISTEN ${this.channelName}`);
     } catch (error) {
       this.client = null;
       throw error;
@@ -74,7 +109,7 @@ export class PostgreSQLEventListener implements EventListener {
 
     if (this.client) {
       try {
-        await this.client.query(`UNLISTEN ${POSTGRESQL_EVENT_CHANNEL}`);
+        await this.client.query(`UNLISTEN ${this.channelName}`);
         await this.client.end();
       } catch {
         // Ignore errors during disconnect
