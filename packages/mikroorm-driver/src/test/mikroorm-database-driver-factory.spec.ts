@@ -2,12 +2,13 @@ import 'reflect-metadata';
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
 import { MikroORM } from '@mikro-orm/core';
 import { PostgreSqlDriver } from '@mikro-orm/postgresql';
+import { MySqlDriver } from '@mikro-orm/mysql';
 import { EventConfigurationResolverContract } from '@nestixis/nestjs-inbox-outbox';
 import { MikroOrmInboxOutboxTransportEvent } from '../model/mikroorm-inbox-outbox-transport-event.model';
 import { MikroORMDatabaseDriverFactory } from '../driver/mikroorm-database-driver.factory';
 import { MikroORMDatabaseDriver } from '../driver/mikroorm.database-driver';
 import { PostgreSQLEventListener } from '../listener/postgresql-event-listener';
-import { createTestDatabase, dropTestDatabase } from './test-utils';
+import { createTestDatabase, dropTestDatabase, MYSQL_CONNECTION } from './test-utils';
 
 describe('MikroORMDatabaseDriverFactory', () => {
   let orm: MikroORM;
@@ -180,6 +181,30 @@ describe('MikroORMDatabaseDriverFactory', () => {
       const listener = factory.getEventListener();
 
       expect(listener).toBeNull();
+    });
+
+    it('should return null for MySQL driver', async () => {
+      const mysqlDbName = await createTestDatabase('mysql');
+      const mysqlOrm = await MikroORM.init({
+        driver: MySqlDriver,
+        host: MYSQL_CONNECTION.host,
+        port: MYSQL_CONNECTION.port,
+        user: MYSQL_CONNECTION.user,
+        password: MYSQL_CONNECTION.password,
+        dbName: mysqlDbName,
+        entities: [MikroOrmInboxOutboxTransportEvent],
+        allowGlobalContext: true,
+      });
+
+      try {
+        const factory = new MikroORMDatabaseDriverFactory(mysqlOrm);
+        const listener = factory.getEventListener();
+
+        expect(listener).toBeNull();
+      } finally {
+        await mysqlOrm.close();
+        await dropTestDatabase(mysqlDbName, 'mysql');
+      }
     });
   });
 });

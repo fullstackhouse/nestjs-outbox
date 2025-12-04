@@ -14,6 +14,11 @@ export interface MikroORMDatabaseDriverFactoryOptions {
   useContext?: boolean;
 }
 
+function isPostgreSQLDriver(orm: MikroORM): boolean {
+  const driverName = orm.config.get('driver')?.name;
+  return driverName === 'PostgreSqlDriver';
+}
+
 export class MikroORMDatabaseDriverFactory {
   private eventListener: PostgreSQLEventListener | null = null;
   private useContext: boolean;
@@ -22,7 +27,7 @@ export class MikroORMDatabaseDriverFactory {
     private readonly orm: MikroORM,
     options?: MikroORMDatabaseDriverFactoryOptions,
   ) {
-    if (options?.listenNotify?.enabled !== false) {
+    if (options?.listenNotify?.enabled !== false && isPostgreSQLDriver(orm)) {
       this.eventListener = new PostgreSQLEventListener(orm, options?.listenNotify);
     }
     this.useContext = options?.useContext ?? false;
