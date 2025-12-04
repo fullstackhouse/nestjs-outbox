@@ -154,7 +154,7 @@ describe('TransacationalEventEmitter', () => {
       name: 'newEvent',
     };
     
-    await transactionalEventEmitter.emit(newEvent, []);
+    await transactionalEventEmitter.emit(newEvent);
 
     expect(mockedDriver.persist).toHaveBeenCalledTimes(1);
     expect(mockedDriver.flush).toHaveBeenCalled();
@@ -211,7 +211,7 @@ describe('TransacationalEventEmitter', () => {
       name: 'notConfiguredEvent',
     };
 
-    await expect(transactionalEventEmitter.emit(newEvent, [])).rejects.toThrow(`Event ${newEvent.name} is not configured. Did you forget to add it to the module options?`);
+    await expect(transactionalEventEmitter.emit(newEvent)).rejects.toThrow(`Event ${newEvent.name} is not configured. Did you forget to add it to the module options?`);
   })
 
 
@@ -305,7 +305,7 @@ describe('TransacationalEventEmitter', () => {
       name: 'newEvent',
     };
 
-    await transactionalEventEmitter.emit(newEvent, []);
+    await transactionalEventEmitter.emit(newEvent);
 
     expect(mockedDriver.persist).toHaveBeenCalledTimes(1);
     expect(mockedDriver.flush).toHaveBeenCalled();
@@ -331,7 +331,7 @@ describe('TransacationalEventEmitter', () => {
       name: 'newEvent',
     };
 
-    await transactionalEventEmitter.emitAsync(newEvent, []);
+    await transactionalEventEmitter.emitAsync(newEvent);
 
     expect(mockedDriver.persist).toHaveBeenCalledTimes(1);
     expect(mockedDriver.flush).toHaveBeenCalled();
@@ -357,7 +357,7 @@ describe('TransacationalEventEmitter', () => {
       name: 'newEvent',
     };
 
-    await transactionalEventEmitter.emit(newEvent, []);
+    await transactionalEventEmitter.emit(newEvent);
 
     expect(mockedInboxOutboxEventProcessor.process).toHaveBeenCalledTimes(1);
   });
@@ -380,7 +380,7 @@ describe('TransacationalEventEmitter', () => {
       name: 'newEvent',
     };
 
-    await transactionalEventEmitter.emit(newEvent, []);
+    await transactionalEventEmitter.emit(newEvent);
 
     expect(mockedInboxOutboxEventProcessor.process).toHaveBeenCalledTimes(1);
   });
