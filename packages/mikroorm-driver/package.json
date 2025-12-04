@@ -45,7 +45,8 @@
     "typescript": "^5.6.2",
     "unplugin-swc": "^1.5.1",
     "@swc/core": "^1.7.42",
-    "vitest": "^2.1.1"
+    "vitest": "^2.1.1",
+    "vite-tsconfig-paths": "^5.1.4"
   },
   "gitHead": "010c167e60c596cb1aabf28186242a095c351e59"
 }

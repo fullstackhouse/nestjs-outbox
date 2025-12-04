@@ -1,6 +1,6 @@
 import { defineConfig } from 'vitest/config';
 import swc from 'unplugin-swc';
-import path from 'path';
+import tsconfigPaths from 'vite-tsconfig-paths';
 
 export default defineConfig({
   test: {
@@ -16,12 +16,8 @@ export default defineConfig({
       },
     },
   },
-  resolve: {
-    alias: {
-      '@fullstackhouse/nestjs-outbox': path.resolve(__dirname, '../core/dist'),
-    },
-  },
   plugins: [
+    tsconfigPaths(),
     swc.vite({
       module: { type: 'es6' },
     }),
