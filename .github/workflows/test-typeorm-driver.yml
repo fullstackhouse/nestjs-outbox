@@ -53,19 +53,6 @@ jobs:
       - name: Build core package
         run: npm run build --workspace=@fullstackhouse/nestjs-outbox
 
-      - name: Debug symlinks
-        run: |
-          echo "=== Core package dist contents ==="
-          ls -la packages/core/dist/ || echo "No dist folder"
-          echo "=== node_modules symlink ==="
-          ls -la node_modules/@fullstackhouse/
-          echo "=== Symlink target ==="
-          readlink -f node_modules/@fullstackhouse/nestjs-outbox
-          echo "=== Target package.json ==="
-          cat node_modules/@fullstackhouse/nestjs-outbox/package.json | head -30
-          echo "=== Target dist ==="
-          ls -la node_modules/@fullstackhouse/nestjs-outbox/dist/ || echo "No dist in symlink target"
-
       - name: Type check TypeORM driver
         run: npm run build --workspace=@fullstackhouse/nestjs-outbox-typeorm-driver
 
