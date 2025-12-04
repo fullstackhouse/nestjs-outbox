@@ -161,6 +161,21 @@ describe('PostgreSQLEventListener reconnection', () => {
 
     await listener.disconnect();
   });
+
+  it('should not attempt reconnection after disconnect is called', async () => {
+    const listener = new PostgreSQLEventListener(orm, { reconnectDelayMs: 50 });
+
+    const connectSpy = vi.spyOn(listener, 'connect');
+
+    await listener.connect();
+    expect(connectSpy).toHaveBeenCalledTimes(1);
+
+    await listener.disconnect();
+
+    await new Promise((resolve) => setTimeout(resolve, 150));
+
+    expect(connectSpy).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe('PostgreSQLEventListener custom channel', () => {

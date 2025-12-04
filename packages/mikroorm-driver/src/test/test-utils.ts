@@ -61,6 +61,9 @@ export async function createTestDatabase(databaseType: DatabaseType = 'postgresq
       ...POSTGRESQL_CONNECTION,
       database: 'postgres',
     });
+    client.on('error', () => {
+      // Swallow errors during cleanup
+    });
     await client.connect();
     await client.query(`CREATE DATABASE ${dbName}`);
     await client.end();
@@ -80,6 +83,9 @@ export async function dropTestDatabase(dbName: string, databaseType: DatabaseTyp
     const client = new Client({
       ...POSTGRESQL_CONNECTION,
       database: 'postgres',
+    });
+    client.on('error', () => {
+      // Swallow errors during cleanup
     });
     await client.connect();
     await client.query(`DROP DATABASE IF EXISTS ${dbName} WITH (FORCE)`);

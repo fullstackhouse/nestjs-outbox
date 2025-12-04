@@ -42,6 +42,7 @@ export class PostgreSQLEventListener implements EventListener {
   private eventsSubject = new Subject<string>();
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private isConnecting = false;
+  private isDisconnecting = false;
   private readonly reconnectDelayMs: number;
   readonly channelName: string;
 
@@ -102,26 +103,35 @@ export class PostgreSQLEventListener implements EventListener {
   }
 
   async disconnect(): Promise<void> {
+    this.isDisconnecting = true;
+
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
     }
 
     if (this.client) {
+      const client = this.client;
+      this.client = null;
+
+      client.removeAllListeners('notification');
+      client.removeAllListeners('end');
+      client.on('error', () => {
+        // Swallow errors during disconnect
+      });
+
       try {
-        await this.client.query(`UNLISTEN ${this.channelName}`);
-        await this.client.end();
+        await client.end();
       } catch {
         // Ignore errors during disconnect
       }
-      this.client = null;
     }
 
     this.eventsSubject.complete();
   }
 
   private scheduleReconnect(): void {
-    if (this.reconnectTimeout || this.isConnecting) {
+    if (this.reconnectTimeout || this.isConnecting || this.isDisconnecting) {
       return;
     }
 
