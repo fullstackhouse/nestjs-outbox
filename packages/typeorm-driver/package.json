@@ -42,8 +42,7 @@
     "rxjs": "^7.8.1",
     "typescript": "^5.6.2",
     "unplugin-swc": "^1.5.1",
-    "vitest": "^2.1.1",
-    "vite-tsconfig-paths": "^5.1.4"
+    "vitest": "^2.1.1"
   },
   "gitHead": "010c167e60c596cb1aabf28186242a095c351e59"
 }
