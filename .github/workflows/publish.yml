@@ -43,3 +43,5 @@ jobs:
 
       - name: Publish packages
         run: npx lerna publish from-package --yes --no-git-tag-version
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.NPM_TOKEN }}
