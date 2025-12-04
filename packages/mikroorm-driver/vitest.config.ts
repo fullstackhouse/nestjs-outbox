@@ -1,6 +1,6 @@
 import { defineConfig } from 'vitest/config';
 import swc from 'unplugin-swc';
-import path from 'path';
+import { fileURLToPath, URL } from 'url';
 
 export default defineConfig({
   test: {
@@ -15,8 +15,10 @@ export default defineConfig({
         singleFork: true,
       },
     },
+  },
+  resolve: {
     alias: {
-      '@fullstackhouse/nestjs-outbox': path.resolve(__dirname, '../core/dist'),
+      '@fullstackhouse/nestjs-outbox': fileURLToPath(new URL('../core/dist', import.meta.url)),
     },
   },
   plugins: [
