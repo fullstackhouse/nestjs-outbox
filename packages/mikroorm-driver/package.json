@@ -22,7 +22,7 @@
   "dependencies": {
     "@mikro-orm/core": "^6.3.9",
     "@mikro-orm/migrations": "^6.3.9",
-    "@fullstackhouse/nestjs-outbox": "^1.0.1"
+    "@fullstackhouse/nestjs-outbox": "*"
   },
   "devDependencies": {
     "@mikro-orm/nestjs": "6.0.2",

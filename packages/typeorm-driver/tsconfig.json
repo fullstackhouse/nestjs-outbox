@@ -11,9 +11,6 @@
     "sourceMap": true,
     "outDir": "./dist",
     "baseUrl": "./",
-    "paths": {
-      "@fullstackhouse/nestjs-outbox": ["../core/dist"]
-    },
     "incremental": true,
     "skipLibCheck": true,
     "strictNullChecks": false,

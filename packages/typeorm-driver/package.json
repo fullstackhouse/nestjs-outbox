@@ -21,7 +21,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@fullstackhouse/nestjs-outbox": "^1.0.1",
+    "@fullstackhouse/nestjs-outbox": "*",
     "reflect-metadata": "^0.2.2",
     "typeorm": "^0.3.20"
   },
