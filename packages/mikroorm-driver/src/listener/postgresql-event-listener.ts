@@ -114,16 +114,49 @@ export class PostgreSQLEventListener implements EventListener {
       const client = this.client;
       this.client = null;
 
-      client.removeAllListeners('notification');
-      client.removeAllListeners('end');
-      client.on('error', () => {
-        // Swallow errors during disconnect
-      });
+      // Remove all client-level listeners
+      client.removeAllListeners();
+
+      // Access the internal connection to prevent "handleEmptyQuery" errors.
+      // The pg library's _handleEmptyQuery doesn't null-check activeQuery,
+      // so we replace the handler to safely ignore late messages.
+      const connection = (client as unknown as {
+        connection: {
+          removeAllListeners: (event?: string) => void;
+          on: (event: string, handler: () => void) => void;
+          stream?: { destroy: () => void };
+        };
+      }).connection;
+
+      if (connection) {
+        // Replace all handlers that could throw when activeQuery is null
+        connection.removeAllListeners('emptyQuery');
+        connection.removeAllListeners('commandComplete');
+        connection.removeAllListeners('rowDescription');
+        connection.removeAllListeners('dataRow');
+        connection.removeAllListeners('parseComplete');
+        connection.removeAllListeners('bindComplete');
+        connection.removeAllListeners('portalSuspended');
+
+        // Add no-op handlers to prevent errors from late events
+        connection.on('emptyQuery', () => {});
+        connection.on('commandComplete', () => {});
+        connection.on('rowDescription', () => {});
+        connection.on('dataRow', () => {});
+        connection.on('parseComplete', () => {});
+        connection.on('bindComplete', () => {});
+        connection.on('portalSuspended', () => {});
+
+        // Destroy stream to stop further data processing
+        if (connection.stream?.destroy) {
+          connection.stream.destroy();
+        }
+      }
 
       try {
         await client.end();
       } catch {
-        // Ignore errors during disconnect
+        // Ignore errors during disconnect - expected after stream destroy
       }
     }
 

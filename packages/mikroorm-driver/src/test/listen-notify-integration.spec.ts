@@ -21,6 +21,7 @@ import {
   BASE_CONNECTION,
   createTestDatabase,
   dropTestDatabase,
+  endPgClientSafely,
 } from './test-utils';
 import { Client } from 'pg';
 
@@ -104,7 +105,7 @@ async function createTestAppWithNotify(): Promise<TestContext> {
   await pgClient.connect();
   await pgClient.query(triggerSQL.createFunction);
   await pgClient.query(triggerSQL.createTrigger);
-  await pgClient.end();
+  await endPgClientSafely(pgClient);
 
   const eventListener = driverFactory.getEventListener();
   await eventListener?.connect();

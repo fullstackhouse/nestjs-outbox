@@ -11,6 +11,17 @@ import { randomUUID } from 'crypto';
 import { Client } from 'pg';
 import * as mysql from 'mysql2/promise';
 
+// Patch pg Client to handle missing activeQuery gracefully
+// This fixes "Cannot read properties of undefined (reading 'handleEmptyQuery')"
+// errors that occur when connections are closed while data is still being processed.
+// This is a known issue in the pg library where _handleEmptyQuery doesn't null-check activeQuery.
+const originalHandleEmptyQuery = (Client.prototype as unknown as { _handleEmptyQuery: () => void })._handleEmptyQuery;
+(Client.prototype as unknown as { _handleEmptyQuery: () => void })._handleEmptyQuery = function () {
+  if ((this as unknown as { activeQuery: unknown }).activeQuery) {
+    originalHandleEmptyQuery.call(this);
+  }
+};
+
 export type DatabaseType = 'postgresql' | 'mysql';
 
 export interface TestAppConfig {
@@ -66,10 +77,38 @@ export async function createTestDatabase(databaseType: DatabaseType = 'postgresq
     });
     await client.connect();
     await client.query(`CREATE DATABASE ${dbName}`);
-    await client.end();
+    await endPgClientSafely(client);
   }
 
   return dbName;
+}
+
+export async function endPgClientSafely(client: Client): Promise<void> {
+  client.removeAllListeners();
+  const connection = (client as unknown as {
+    connection: {
+      removeAllListeners: (event?: string) => void;
+      on: (event: string, handler: () => void) => void;
+      stream?: { destroy: () => void };
+    };
+  }).connection;
+
+  if (connection) {
+    // Replace handlers that could throw when activeQuery is null
+    connection.removeAllListeners('emptyQuery');
+    connection.removeAllListeners('commandComplete');
+    connection.on('emptyQuery', () => {});
+    connection.on('commandComplete', () => {});
+    if (connection.stream?.destroy) {
+      connection.stream.destroy();
+    }
+  }
+
+  try {
+    await client.end();
+  } catch {
+    // Ignore errors during disconnect
+  }
 }
 
 export async function dropTestDatabase(dbName: string, databaseType: DatabaseType = 'postgresql'): Promise<void> {
@@ -89,7 +128,7 @@ export async function dropTestDatabase(dbName: string, databaseType: DatabaseTyp
     });
     await client.connect();
     await client.query(`DROP DATABASE IF EXISTS ${dbName} WITH (FORCE)`);
-    await client.end();
+    await endPgClientSafely(client);
   }
 }
 

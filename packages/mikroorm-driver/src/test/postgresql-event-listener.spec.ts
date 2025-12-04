@@ -8,7 +8,7 @@ import {
   DEFAULT_POSTGRESQL_EVENT_CHANNEL,
 } from '../listener/postgresql-event-listener';
 import { MikroOrmInboxOutboxTransportEvent } from '../model/mikroorm-inbox-outbox-transport-event.model';
-import { BASE_CONNECTION, createTestDatabase, dropTestDatabase } from './test-utils';
+import { BASE_CONNECTION, createTestDatabase, dropTestDatabase, endPgClientSafely } from './test-utils';
 
 describe('PostgreSQLEventListener', () => {
   let listener: PostgreSQLEventListener;
@@ -38,7 +38,7 @@ describe('PostgreSQLEventListener', () => {
 
   afterEach(async () => {
     await listener.disconnect();
-    await notifyClient.end();
+    await endPgClientSafely(notifyClient);
     await orm.close();
     await dropTestDatabase(dbName);
   });
@@ -207,7 +207,7 @@ describe('PostgreSQLEventListener custom channel', () => {
 
   afterEach(async () => {
     await listener.disconnect();
-    await notifyClient.end();
+    await endPgClientSafely(notifyClient);
     await orm.close();
     await dropTestDatabase(dbName);
   });
