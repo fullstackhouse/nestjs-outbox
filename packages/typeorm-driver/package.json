@@ -1,6 +1,6 @@
 {
   "name": "@fullstackhouse/nestjs-outbox-typeorm-driver",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "This package provides a driver for the NestJS Outbox library that uses TypeORM to interact with the database.",
   "author": "axotion <7965436+axotion@users.noreply.github.com>",
   "homepage": "https://github.com/fullstackhouse/nestjs-outbox#readme",
@@ -21,7 +21,7 @@
     "access": "public"
   },
   "dependencies": {
-    "@fullstackhouse/nestjs-outbox": "^2.0.0",
+    "@fullstackhouse/nestjs-outbox": "^3.0.0",
     "reflect-metadata": "^0.2.2",
     "typeorm": "^0.3.20"
   },

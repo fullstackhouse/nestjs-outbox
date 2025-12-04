@@ -1,6 +1,6 @@
 {
   "name": "@fullstackhouse/nestjs-outbox",
-  "version": "2.0.0",
+  "version": "3.0.0",
   "description": "NestJS Outbox pattern implementation with extensible database drivers",
   "repository": {
     "type": "git",
