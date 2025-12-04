@@ -15,6 +15,9 @@ export default defineConfig({
       },
     },
   },
+  resolve: {
+    preserveSymlinks: false,
+  },
   plugins: [
     swc.vite({
       module: { type: 'es6' },
