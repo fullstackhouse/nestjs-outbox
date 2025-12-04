@@ -257,12 +257,14 @@ See existing drivers in `packages/` for reference. Contributions welcome via PR.
 
 ## Releasing
 
-Publishing to npm is automated via GitHub releases:
+Publishing to npm is done manually via CLI:
 
-1. Create a GitHub release with a version tag (e.g., `v1.0.2`)
-2. The workflow extracts the version from the tag and publishes all packages
-
-**Requirements:** Set `NPM_TOKEN` secret in GitHub repository settings.
+```bash
+npx lerna version <version> --yes
+npm ci
+npm run build --workspaces
+npx lerna publish from-package --yes --no-private
+```
 
 ## License
 
