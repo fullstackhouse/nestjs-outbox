@@ -42,6 +42,7 @@ export class PostgreSQLEventListener implements EventListener {
   private eventsSubject = new Subject<string>();
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
   private isConnecting = false;
+  private isStopped = false;
   private readonly reconnectDelayMs: number;
   readonly channelName: string;
 
@@ -58,7 +59,7 @@ export class PostgreSQLEventListener implements EventListener {
   }
 
   async connect(): Promise<void> {
-    if (this.client || this.isConnecting) {
+    if (this.isStopped || this.client || this.isConnecting) {
       return;
     }
 
@@ -102,6 +103,8 @@ export class PostgreSQLEventListener implements EventListener {
   }
 
   async disconnect(): Promise<void> {
+    this.isStopped = true;
+
     if (this.reconnectTimeout) {
       clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
@@ -121,12 +124,15 @@ export class PostgreSQLEventListener implements EventListener {
   }
 
   private scheduleReconnect(): void {
-    if (this.reconnectTimeout || this.isConnecting) {
+    if (this.isStopped || this.reconnectTimeout || this.isConnecting) {
       return;
     }
 
     this.reconnectTimeout = setTimeout(async () => {
       this.reconnectTimeout = null;
+      if (this.isStopped) {
+        return;
+      }
       try {
         await this.connect();
       } catch (error) {

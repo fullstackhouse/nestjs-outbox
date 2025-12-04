@@ -331,7 +331,7 @@ describe('Integration Tests', () => {
 
       const unconfiguredEvent = new UserCreatedEvent(1, 'test@example.com');
 
-      await expect(emitter.emit(unconfiguredEvent, [])).rejects.toThrow(
+      await expect(emitter.emit(unconfiguredEvent)).rejects.toThrow(
         /Event UserCreated is not configured/,
       );
     });
