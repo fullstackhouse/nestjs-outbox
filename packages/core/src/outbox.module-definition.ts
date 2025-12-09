@@ -1,6 +1,6 @@
-import { ConfigurableModuleBuilder } from '@nestjs/common';
+import { ConfigurableModuleBuilder, Type } from '@nestjs/common';
 import { DatabaseDriverFactory } from './driver/database-driver.factory';
-import { OutboxMiddleware } from './middleware/outbox-middleware.interface';
+import { OutboxHooks, OutboxMiddleware } from './middleware/outbox-middleware.interface';
 
 export interface OutboxModuleEventOptions {
   name: string;
@@ -24,7 +24,16 @@ export interface OutboxModuleOptions {
   retryEveryMilliseconds: number;
   maxOutboxTransportEventPerRetry: number;
   driverFactory: DatabaseDriverFactory;
-  middlewares?: OutboxMiddleware[];
+  /**
+   * Class-based middlewares for event processing hooks.
+   * Middlewares are instantiated via NestJS DI and can inject dependencies.
+   */
+  middlewares?: Type<OutboxMiddleware>[];
+  /**
+   * Function-based hooks for event processing.
+   * Alternative to class-based middlewares for simpler use cases.
+   */
+  hooks?: OutboxHooks;
 }
 
 export const { ConfigurableModuleClass, MODULE_OPTIONS_TOKEN, ASYNC_OPTIONS_TYPE } = new ConfigurableModuleBuilder<OutboxModuleOptions>()

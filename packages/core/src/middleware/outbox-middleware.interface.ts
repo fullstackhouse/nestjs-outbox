@@ -1,17 +1,42 @@
-import { IListener } from '../listener/contract/listener.interface';
 import { OutboxTransportEvent } from '../model/outbox-transport-event.interface';
-import { OutboxModuleEventOptions } from '../outbox.module-definition';
 
-export interface OutboxMiddlewareContext {
-  event: OutboxTransportEvent;
-  listener: IListener<any>;
-  eventOptions: OutboxModuleEventOptions;
+export interface OutboxEventContext {
+  eventName: string;
+  eventPayload: unknown;
+  eventId: number;
+  listenerName: string;
+}
+
+export interface OutboxListenerResult {
+  success: boolean;
+  error?: Error;
+  durationMs: number;
 }
 
 export interface OutboxMiddleware {
-  name: string;
-  process(
-    context: OutboxMiddlewareContext,
-    next: () => Promise<void>,
-  ): Promise<void>;
+  beforeProcess?(context: OutboxEventContext): void | Promise<void>;
+  afterProcess?(context: OutboxEventContext, result: OutboxListenerResult): void | Promise<void>;
+  onError?(context: OutboxEventContext, error: Error): void | Promise<void>;
+}
+
+export type OutboxMiddlewareClass = new (...args: any[]) => OutboxMiddleware;
+
+export interface OutboxHooks {
+  beforeProcess?: (context: OutboxEventContext) => void | Promise<void>;
+  afterProcess?: (context: OutboxEventContext, result: OutboxListenerResult) => void | Promise<void>;
+  onError?: (context: OutboxEventContext, error: Error) => void | Promise<void>;
+}
+
+export const OUTBOX_MIDDLEWARES_TOKEN = 'OUTBOX_MIDDLEWARES_TOKEN';
+
+export function createOutboxEventContext(
+  outboxTransportEvent: OutboxTransportEvent,
+  listenerName: string,
+): OutboxEventContext {
+  return {
+    eventName: outboxTransportEvent.eventName,
+    eventPayload: outboxTransportEvent.eventPayload,
+    eventId: outboxTransportEvent.id,
+    listenerName,
+  };
 }

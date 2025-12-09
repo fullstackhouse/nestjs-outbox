@@ -2,6 +2,7 @@ export * from "./driver/database-driver.factory";
 export * from "./driver/database.driver";
 export * from "./emitter/contract/outbox-event.interface";
 export { TransactionalEventEmitter, TransactionalEventEmitterOperations } from "./emitter/transactional-event-emitter";
+export * from "./middleware/outbox-middleware.interface";
 export * from "./outbox.module";
 export * from "./outbox.module-definition";
 export * from "./listener/contract/listener.interface";
@@ -9,5 +10,3 @@ export * from "./listener/discovery/on-event.decorator";
 export * from "./model/outbox-transport-event.interface";
 export * from "./poller/event-listener.interface";
 export * from "./resolver/event-configuration-resolver.contract";
-export * from "./middleware/outbox-middleware.interface";
-
