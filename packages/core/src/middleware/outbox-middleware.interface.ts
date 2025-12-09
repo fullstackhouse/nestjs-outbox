@@ -17,6 +17,7 @@ export interface OutboxMiddleware {
   beforeProcess?(context: OutboxEventContext): void | Promise<void>;
   afterProcess?(context: OutboxEventContext, result: OutboxListenerResult): void | Promise<void>;
   onError?(context: OutboxEventContext, error: Error): void | Promise<void>;
+  wrapExecution?<T>(context: OutboxEventContext, next: () => Promise<T>): Promise<T>;
 }
 
 export type OutboxMiddlewareClass = new (...args: any[]) => OutboxMiddleware;

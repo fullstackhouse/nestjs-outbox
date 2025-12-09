@@ -84,7 +84,9 @@ export class OutboxEventProcessor implements OutboxEventProcessorContract {
           });
         }, eventOptions.listeners.maxExecutionTimeTTL);
 
-        await listener.handle(outboxTransportEvent.eventPayload, outboxTransportEvent.eventName);
+        await this.wrapExecution(context, async () => {
+          await listener.handle(outboxTransportEvent.eventPayload, outboxTransportEvent.eventName);
+        });
         clearTimeout(timeoutTimer);
 
         const durationMs = Date.now() - startTime;
@@ -140,6 +142,20 @@ export class OutboxEventProcessor implements OutboxEventProcessorContract {
         this.logger.warn(`Middleware onError hook failed: ${hookError}`);
       }
     }
+  }
+
+  private async wrapExecution<T>(context: OutboxEventContext, fn: () => Promise<T>): Promise<T> {
+    const wrappers = this.middlewares.filter((m) => m.wrapExecution);
+    if (wrappers.length === 0) {
+      return fn();
+    }
+
+    let wrapped = fn;
+    for (const middleware of wrappers.reverse()) {
+      const current = wrapped;
+      wrapped = () => middleware.wrapExecution!(context, current);
+    }
+    return wrapped();
   }
 
   private buildEventContext(event: OutboxTransportEvent): Record<string, unknown> {
