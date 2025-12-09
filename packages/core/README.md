@@ -12,6 +12,7 @@ A NestJS module implementing the [Transactional Outbox Pattern](https://microser
 - **Graceful Shutdown**: In-flight events complete before application terminates
 - **Multiple ORMs**: TypeORM and MikroORM drivers included
 - **Flexible Processing**: Immediate or deferred event processing per event type
+- **Middleware Support**: Intercept event processing for logging, tracing, and error reporting
 
 ## How It Works
 
@@ -238,6 +239,120 @@ The `PostgreSQLEventListener`:
 - Automatically reconnects on connection failures (configurable delay, default 5s)
 - Works alongside polling as a fallback mechanism
 - Requires the LISTEN/NOTIFY migration from `OutboxMigrations`
+
+## Middleware
+
+Middlewares allow you to intercept and enhance event processing with cross-cutting concerns like logging, tracing, or error reporting.
+
+### Creating a Middleware
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { OutboxMiddleware, OutboxMiddlewareContext } from '@fullstackhouse/nestjs-outbox';
+
+@Injectable()
+export class LoggerMiddleware implements OutboxMiddleware {
+  name = 'logger';
+
+  async process(
+    context: OutboxMiddlewareContext,
+    next: () => Promise<void>,
+  ): Promise<void> {
+    const startTime = Date.now();
+
+    console.log(`Processing event ${context.event.eventName} for listener ${context.listener.getName()}`);
+
+    try {
+      await next();
+      const duration = Date.now() - startTime;
+      console.log(`Completed in ${duration}ms`);
+    } catch (error) {
+      console.error(`Failed after ${Date.now() - startTime}ms`, error);
+      throw error;
+    }
+  }
+}
+```
+
+### Registering Middlewares
+
+```typescript
+@Module({
+  imports: [
+    OutboxModule.registerAsync({
+      imports: [MikroOrmModule.forFeature([MikroOrmOutboxTransportEvent])],
+      useFactory: (orm: MikroORM, loggerMiddleware: LoggerMiddleware) => ({
+        driverFactory: new MikroORMDatabaseDriverFactory(orm),
+        events: [/* ... */],
+        retryEveryMilliseconds: 30_000,
+        maxOutboxTransportEventPerRetry: 10,
+        middlewares: [loggerMiddleware],
+      }),
+      inject: [MikroORM, LoggerMiddleware],
+    }),
+  ],
+  providers: [LoggerMiddleware],
+})
+export class AppModule {}
+```
+
+### Middleware Context
+
+The `OutboxMiddlewareContext` provides access to:
+- `event` - The outbox transport event being processed
+- `listener` - The listener handling the event
+- `eventOptions` - Configuration for the event type
+
+### Common Middleware Use Cases
+
+**Error Reporting (Sentry)**
+```typescript
+@Injectable()
+export class SentryMiddleware implements OutboxMiddleware {
+  name = 'sentry';
+
+  async process(context: OutboxMiddlewareContext, next: () => Promise<void>): Promise<void> {
+    try {
+      await next();
+    } catch (error) {
+      Sentry.captureException(error, {
+        tags: {
+          eventName: context.event.eventName,
+          listenerName: context.listener.getName(),
+        },
+      });
+      throw error;
+    }
+  }
+}
+```
+
+**OpenTelemetry Tracing**
+```typescript
+@Injectable()
+export class TracingMiddleware implements OutboxMiddleware {
+  name = 'tracing';
+
+  async process(context: OutboxMiddlewareContext, next: () => Promise<void>): Promise<void> {
+    const span = tracer.startSpan('outbox.process', {
+      attributes: {
+        'event.name': context.event.eventName,
+        'listener.name': context.listener.getName(),
+      },
+    });
+
+    try {
+      await next();
+      span.setStatus({ code: SpanStatusCode.OK });
+    } catch (error) {
+      span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
+      throw error;
+    } finally {
+      span.end();
+    }
+  }
+}
+```
 
 ## Graceful Shutdown
 

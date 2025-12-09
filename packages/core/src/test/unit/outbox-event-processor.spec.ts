@@ -3,6 +3,7 @@ import { DatabaseDriverFactory } from "../../driver/database-driver.factory";
 import { DatabaseDriver } from "../../driver/database.driver";
 import { OutboxModuleOptions } from "../../outbox.module-definition";
 import { IListener } from "../../listener/contract/listener.interface";
+import { OutboxMiddleware } from "../../middleware/outbox-middleware.interface";
 import { OutboxTransportEvent } from "../../model/outbox-transport-event.interface";
 import { OutboxEventProcessorContract } from "../../processor/outbox-event-processor.contract";
 import { OutboxEventProcessor } from "../../processor/outbox-event.processor";
@@ -131,5 +132,286 @@ describe('OutboxEventProcessor', () => {
         expect(mockedDriver.persist).toHaveBeenCalledTimes(1);
         expect(mockedDriver.flush).toHaveBeenCalledTimes(1);
 
+    });
+
+    describe('Middleware hooks', () => {
+        it('Should call middleware beforeProcess and afterProcess hooks on successful processing', async () => {
+            outboxOptions.events = [
+                {
+                    name: 'newEvent',
+                    listeners: {
+                        expiresAtTTL: 1000,
+                        readyToRetryAfterTTL: 1000,
+                        maxExecutionTimeTTL: 1000,
+                    },
+                },
+            ];
+
+            const listener: IListener<any> = {
+                handle: vi.fn().mockResolvedValue(undefined),
+                getName: vi.fn().mockReturnValue('testListener'),
+            };
+
+            const middleware: OutboxMiddleware = {
+                beforeProcess: vi.fn(),
+                afterProcess: vi.fn(),
+                onError: vi.fn(),
+            };
+
+            const outboxEventProcessor = new OutboxEventProcessor(
+                mockLogger,
+                mockedDriverFactory,
+                mockedEventConfigurationResolver,
+                [middleware]
+            );
+
+            const outboxTransportEvent: OutboxTransportEvent = {
+                readyToRetryAfter: new Date().getTime(),
+                deliveredToListeners: [],
+                eventName: 'newEvent',
+                eventPayload: { test: 'data' },
+                expireAt: new Date().getTime() + 1000,
+                id: 1,
+                insertedAt: new Date().getTime(),
+            };
+
+            await outboxEventProcessor.process(outboxOptions.events[0], outboxTransportEvent, [listener]);
+
+            expect(middleware.beforeProcess).toHaveBeenCalledTimes(1);
+            expect(middleware.beforeProcess).toHaveBeenCalledWith({
+                eventName: 'newEvent',
+                eventPayload: { test: 'data' },
+                eventId: 1,
+                listenerName: 'testListener',
+            });
+
+            expect(middleware.afterProcess).toHaveBeenCalledTimes(1);
+            expect(middleware.afterProcess).toHaveBeenCalledWith(
+                {
+                    eventName: 'newEvent',
+                    eventPayload: { test: 'data' },
+                    eventId: 1,
+                    listenerName: 'testListener',
+                },
+                expect.objectContaining({
+                    success: true,
+                    durationMs: expect.any(Number),
+                })
+            );
+
+            expect(middleware.onError).not.toHaveBeenCalled();
+        });
+
+        it('Should call middleware onError hook when listener throws', async () => {
+            outboxOptions.events = [
+                {
+                    name: 'newEvent',
+                    listeners: {
+                        expiresAtTTL: 1000,
+                        readyToRetryAfterTTL: 1000,
+                        maxExecutionTimeTTL: 1000,
+                    },
+                },
+            ];
+
+            const testError = new Error('Test error');
+            const listener: IListener<any> = {
+                handle: vi.fn().mockRejectedValue(testError),
+                getName: vi.fn().mockReturnValue('failingListener'),
+            };
+
+            const middleware: OutboxMiddleware = {
+                beforeProcess: vi.fn(),
+                afterProcess: vi.fn(),
+                onError: vi.fn(),
+            };
+
+            const outboxEventProcessor = new OutboxEventProcessor(
+                mockLogger,
+                mockedDriverFactory,
+                mockedEventConfigurationResolver,
+                [middleware]
+            );
+
+            const outboxTransportEvent: OutboxTransportEvent = {
+                readyToRetryAfter: new Date().getTime(),
+                deliveredToListeners: [],
+                eventName: 'newEvent',
+                eventPayload: {},
+                expireAt: new Date().getTime() + 1000,
+                id: 1,
+                insertedAt: new Date().getTime(),
+            };
+
+            await outboxEventProcessor.process(outboxOptions.events[0], outboxTransportEvent, [listener]);
+
+            expect(middleware.onError).toHaveBeenCalledTimes(1);
+            expect(middleware.onError).toHaveBeenCalledWith(
+                expect.objectContaining({
+                    eventName: 'newEvent',
+                    listenerName: 'failingListener',
+                }),
+                testError
+            );
+
+            expect(middleware.afterProcess).toHaveBeenCalledWith(
+                expect.anything(),
+                expect.objectContaining({
+                    success: false,
+                    error: testError,
+                })
+            );
+        });
+
+        it('Should call multiple middlewares in order', async () => {
+            outboxOptions.events = [
+                {
+                    name: 'newEvent',
+                    listeners: {
+                        expiresAtTTL: 1000,
+                        readyToRetryAfterTTL: 1000,
+                        maxExecutionTimeTTL: 1000,
+                    },
+                },
+            ];
+
+            const listener: IListener<any> = {
+                handle: vi.fn().mockResolvedValue(undefined),
+                getName: vi.fn().mockReturnValue('listener'),
+            };
+
+            const callOrder: string[] = [];
+            const middleware1: OutboxMiddleware = {
+                beforeProcess: vi.fn().mockImplementation(() => callOrder.push('before1')),
+                afterProcess: vi.fn().mockImplementation(() => callOrder.push('after1')),
+            };
+            const middleware2: OutboxMiddleware = {
+                beforeProcess: vi.fn().mockImplementation(() => callOrder.push('before2')),
+                afterProcess: vi.fn().mockImplementation(() => callOrder.push('after2')),
+            };
+
+            const outboxEventProcessor = new OutboxEventProcessor(
+                mockLogger,
+                mockedDriverFactory,
+                mockedEventConfigurationResolver,
+                [middleware1, middleware2]
+            );
+
+            const outboxTransportEvent: OutboxTransportEvent = {
+                readyToRetryAfter: new Date().getTime(),
+                deliveredToListeners: [],
+                eventName: 'newEvent',
+                eventPayload: {},
+                expireAt: new Date().getTime() + 1000,
+                id: 1,
+                insertedAt: new Date().getTime(),
+            };
+
+            await outboxEventProcessor.process(outboxOptions.events[0], outboxTransportEvent, [listener]);
+
+            expect(callOrder).toEqual(['before1', 'before2', 'after1', 'after2']);
+        });
+
+        it('Should continue processing if middleware throws', async () => {
+            outboxOptions.events = [
+                {
+                    name: 'newEvent',
+                    listeners: {
+                        expiresAtTTL: 1000,
+                        readyToRetryAfterTTL: 1000,
+                        maxExecutionTimeTTL: 1000,
+                    },
+                },
+            ];
+
+            const listener: IListener<any> = {
+                handle: vi.fn().mockResolvedValue(undefined),
+                getName: vi.fn().mockReturnValue('listener'),
+            };
+
+            const failingMiddleware: OutboxMiddleware = {
+                beforeProcess: vi.fn().mockRejectedValue(new Error('Middleware error')),
+                afterProcess: vi.fn(),
+            };
+            const successMiddleware: OutboxMiddleware = {
+                beforeProcess: vi.fn(),
+                afterProcess: vi.fn(),
+            };
+
+            const outboxEventProcessor = new OutboxEventProcessor(
+                mockLogger,
+                mockedDriverFactory,
+                mockedEventConfigurationResolver,
+                [failingMiddleware, successMiddleware]
+            );
+
+            const outboxTransportEvent: OutboxTransportEvent = {
+                readyToRetryAfter: new Date().getTime(),
+                deliveredToListeners: [],
+                eventName: 'newEvent',
+                eventPayload: {},
+                expireAt: new Date().getTime() + 1000,
+                id: 1,
+                insertedAt: new Date().getTime(),
+            };
+
+            await outboxEventProcessor.process(outboxOptions.events[0], outboxTransportEvent, [listener]);
+
+            expect(listener.handle).toHaveBeenCalled();
+            expect(successMiddleware.beforeProcess).toHaveBeenCalled();
+            expect(mockLogger.warn).toHaveBeenCalled();
+        });
+
+        it('Should provide duration in afterProcess result', async () => {
+            outboxOptions.events = [
+                {
+                    name: 'newEvent',
+                    listeners: {
+                        expiresAtTTL: 1000,
+                        readyToRetryAfterTTL: 1000,
+                        maxExecutionTimeTTL: 1000,
+                    },
+                },
+            ];
+
+            const listener: IListener<any> = {
+                handle: vi.fn().mockImplementation(() => new Promise(resolve => setTimeout(resolve, 50))),
+                getName: vi.fn().mockReturnValue('slowListener'),
+            };
+
+            const middleware: OutboxMiddleware = {
+                afterProcess: vi.fn(),
+            };
+
+            const outboxEventProcessor = new OutboxEventProcessor(
+                mockLogger,
+                mockedDriverFactory,
+                mockedEventConfigurationResolver,
+                [middleware]
+            );
+
+            const outboxTransportEvent: OutboxTransportEvent = {
+                readyToRetryAfter: new Date().getTime(),
+                deliveredToListeners: [],
+                eventName: 'newEvent',
+                eventPayload: {},
+                expireAt: new Date().getTime() + 1000,
+                id: 1,
+                insertedAt: new Date().getTime(),
+            };
+
+            await outboxEventProcessor.process(outboxOptions.events[0], outboxTransportEvent, [listener]);
+
+            expect(middleware.afterProcess).toHaveBeenCalledWith(
+                expect.anything(),
+                expect.objectContaining({
+                    success: true,
+                    durationMs: expect.any(Number),
+                })
+            );
+
+            const result = (middleware.afterProcess as ReturnType<typeof vi.fn>).mock.calls[0][1];
+            expect(result.durationMs).toBeGreaterThanOrEqual(40);
+        });
     });
 });
