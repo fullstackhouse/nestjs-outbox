@@ -42,8 +42,8 @@ const DEFAULT_MIDDLEWARES: Type<OutboxMiddleware>[] = [LoggerMiddleware];
 export class OutboxModule extends ConfigurableModuleClass {
   static registerAsync(options: typeof ASYNC_OPTIONS_TYPE): DynamicModule {
     const registered = super.registerAsync(options);
-    const enableDefaultMiddlewares = options.enableDefaultMiddlewares ?? true;
-    const defaultMiddlewares = enableDefaultMiddlewares ? DEFAULT_MIDDLEWARES : [];
+    const enableLoggerMiddleware = options.enableLoggerMiddleware ?? true;
+    const defaultMiddlewares = enableLoggerMiddleware ? DEFAULT_MIDDLEWARES : [];
     const middlewares = [...defaultMiddlewares, ...(options.middlewares ?? [])];
 
     return {

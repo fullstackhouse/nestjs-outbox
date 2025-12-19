@@ -177,6 +177,8 @@ export class AppModule {}
 | `retryEveryMilliseconds` | Polling interval for retry mechanism |
 | `maxOutboxTransportEventPerRetry` | Batch size per polling cycle |
 | `isGlobal` | Register module globally (optional) |
+| `enableLoggerMiddleware` | Enable built-in logging middleware (default: `true`) |
+| `middlewares` | Array of custom middleware classes |
 
 ## Emit Methods
 
@@ -244,7 +246,25 @@ The `PostgreSQLEventListener`:
 
 Middlewares intercept event processing for cross-cutting concerns like logging, tracing, or error reporting. Middlewares are NestJS injectable classes with full dependency injection support.
 
-### Creating a Middleware
+### Built-in LoggerMiddleware
+
+The module includes a `LoggerMiddleware` that is **enabled by default**. It logs:
+- `OUTBOX START {eventName}` - when processing begins
+- `OUTBOX END   {eventName}` - when processing succeeds (with duration)
+- `OUTBOX FAIL  {eventName}` - when processing fails (with error)
+
+Each log includes context: `eventId`, `listener`, `payload` (truncated to 200 chars), and `processTime`.
+
+To disable the built-in logger:
+
+```typescript
+OutboxModule.registerAsync({
+  enableLoggerMiddleware: false,
+  // ... other options
+})
+```
+
+### Creating a Custom Middleware
 
 Implement the `OutboxMiddleware` interface with one or more lifecycle hooks:
 
