@@ -573,7 +573,7 @@ describe('OutboxEventProcessor', () => {
             expect(callOrder).toEqual(['filter1', 'filter2']);
         });
 
-        it('Should continue processing if exception filter throws', async () => {
+        it('Should log error and continue when exception filter throws', async () => {
             outboxOptions.events = [
                 {
                     name: 'newEvent',
@@ -591,8 +591,9 @@ describe('OutboxEventProcessor', () => {
                 getName: vi.fn().mockReturnValue('failingListener'),
             };
 
+            const filterError = new Error('Filter error');
             const failingFilter: ExceptionFilter = {
-                catch: vi.fn().mockRejectedValue(new Error('Filter error')),
+                catch: vi.fn().mockRejectedValue(filterError),
             };
             const successFilter: ExceptionFilter = {
                 catch: vi.fn(),
@@ -620,7 +621,11 @@ describe('OutboxEventProcessor', () => {
 
             expect(failingFilter.catch).toHaveBeenCalled();
             expect(successFilter.catch).toHaveBeenCalled();
-            expect(mockLogger.warn).toHaveBeenCalled();
+            expect(mockLogger.error).toHaveBeenCalledWith(testError);
+            expect(mockLogger.error).toHaveBeenCalledWith(
+                expect.stringContaining('Exception filter failed'),
+                expect.any(String)
+            );
         });
 
         it('Should call exception filters after onError middleware hooks', async () => {

@@ -1,7 +1,8 @@
-import { ArgumentsHost, Type } from '@nestjs/common';
+import { ArgumentsHost } from '@nestjs/common';
+import { HttpArgumentsHost, RpcArgumentsHost, WsArgumentsHost } from '@nestjs/common/interfaces';
 import { OutboxEventContext } from '../middleware/outbox-middleware.interface';
 
-export const OUTBOX_CONTEXT_TYPE = 'outbox';
+export const OUTBOX_CONTEXT_TYPE = 'outbox' as const;
 
 export interface OutboxArgumentsHost {
   getContext(): OutboxEventContext;
@@ -22,15 +23,15 @@ export class OutboxHost implements ArgumentsHost {
     return this.args[index] as T;
   }
 
-  switchToRpc(): import('@nestjs/common').RpcArgumentsHost {
+  switchToRpc(): RpcArgumentsHost {
     throw new Error('Cannot switch to RPC context from outbox context');
   }
 
-  switchToHttp(): import('@nestjs/common').HttpArgumentsHost {
+  switchToHttp(): HttpArgumentsHost {
     throw new Error('Cannot switch to HTTP context from outbox context');
   }
 
-  switchToWs(): import('@nestjs/common').WsArgumentsHost {
+  switchToWs(): WsArgumentsHost {
     throw new Error('Cannot switch to WebSocket context from outbox context');
   }
 
@@ -46,5 +47,5 @@ export class OutboxHost implements ArgumentsHost {
 }
 
 export function isOutboxContext(host: ArgumentsHost): host is OutboxHost {
-  return host.getType() === OUTBOX_CONTEXT_TYPE;
+  return (host.getType() as string) === OUTBOX_CONTEXT_TYPE;
 }

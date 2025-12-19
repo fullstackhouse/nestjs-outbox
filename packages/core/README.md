@@ -426,6 +426,69 @@ export class MetricsMiddleware implements OutboxMiddleware {
 }
 ```
 
+## Exception Filters
+
+NestJS global exception filters are automatically invoked when outbox listeners throw errors. Register your exception filter using NestJS's standard `APP_FILTER` token:
+
+```typescript
+import { Module } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
+
+@Module({
+  providers: [
+    {
+      provide: APP_FILTER,
+      useClass: SentryExceptionFilter,
+    },
+  ],
+})
+export class AppModule {}
+```
+
+The filter receives an `ArgumentsHost` with type `'outbox'`. Use `isOutboxContext()` to check the context type:
+
+```typescript
+import { Catch, ArgumentsHost, ExceptionFilter } from '@nestjs/common';
+import { isOutboxContext } from '@fullstackhouse/nestjs-outbox';
+import * as Sentry from '@sentry/node';
+
+@Catch()
+export class SentryExceptionFilter implements ExceptionFilter {
+  catch(exception: Error, host: ArgumentsHost): void {
+    if (!isOutboxContext(host)) return;
+
+    const context = host.switchToOutbox().getContext();
+    Sentry.captureException(exception, {
+      tags: {
+        eventName: context.eventName,
+        listenerName: context.listenerName,
+      },
+      extra: {
+        eventId: context.eventId,
+        eventPayload: context.eventPayload,
+      },
+    });
+  }
+}
+```
+
+You can also create a unified filter that handles both HTTP and outbox contexts:
+
+```typescript
+@Catch()
+export class AllExceptionsFilter implements ExceptionFilter {
+  catch(exception: Error, host: ArgumentsHost): void {
+    if (isOutboxContext(host)) {
+      const ctx = host.switchToOutbox().getContext();
+      // Handle outbox error
+    } else if (host.getType() === 'http') {
+      const ctx = host.switchToHttp();
+      // Handle HTTP error
+    }
+  }
+}
+```
+
 ## Graceful Shutdown
 
 The module automatically handles graceful shutdown:

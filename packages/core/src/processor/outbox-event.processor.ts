@@ -156,7 +156,7 @@ export class OutboxEventProcessor implements OutboxEventProcessorContract {
       try {
         await filter.catch(error, host);
       } catch (filterError) {
-        this.logger.warn(`Exception filter failed: ${filterError}`);
+        this.logger.error(`Exception filter failed: ${filterError}`, filterError instanceof Error ? filterError.stack : undefined);
       }
     }
   }
