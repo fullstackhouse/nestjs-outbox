@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { DATABASE_DRIVER_FACTORY_TOKEN, DatabaseDriverFactory } from '../driver/database-driver.factory';
+import { OutboxHost } from '../filter/outbox-arguments-host';
 import { OutboxExceptionFilter, OUTBOX_EXCEPTION_FILTERS_TOKEN } from '../filter/outbox-exception-filter.interface';
 import { OutboxModuleEventOptions } from '../outbox.module-definition';
 import { IListener } from '../listener/contract/listener.interface';
@@ -149,9 +150,10 @@ export class OutboxEventProcessor implements OutboxEventProcessorContract {
   }
 
   private async invokeExceptionFilters(context: OutboxEventContext, error: Error): Promise<void> {
+    const host = new OutboxHost(context);
     for (const filter of this.exceptionFilters) {
       try {
-        await filter.catch(error, context);
+        await filter.catch(error, host);
       } catch (filterError) {
         this.logger.warn(`Exception filter failed: ${filterError}`);
       }

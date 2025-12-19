@@ -1,6 +1,8 @@
+import { ArgumentsHost } from '@nestjs/common';
 import { vi } from 'vitest';
 import { DatabaseDriverFactory } from "../../driver/database-driver.factory";
 import { DatabaseDriver } from "../../driver/database.driver";
+import { isOutboxContext, OutboxHost, OUTBOX_CONTEXT_TYPE } from "../../filter/outbox-arguments-host";
 import { OutboxExceptionFilter } from "../../filter/outbox-exception-filter.interface";
 import { OutboxModuleOptions } from "../../outbox.module-definition";
 import { IListener } from "../../listener/contract/listener.interface";
@@ -417,7 +419,7 @@ describe('OutboxEventProcessor', () => {
     });
 
     describe('Exception filters', () => {
-        it('Should call exception filter when listener throws', async () => {
+        it('Should call exception filter with ArgumentsHost when listener throws', async () => {
             outboxOptions.events = [
                 {
                     name: 'newEvent',
@@ -435,8 +437,11 @@ describe('OutboxEventProcessor', () => {
                 getName: vi.fn().mockReturnValue('failingListener'),
             };
 
+            let capturedHost: ArgumentsHost | null = null;
             const exceptionFilter: OutboxExceptionFilter = {
-                catch: vi.fn(),
+                catch: vi.fn().mockImplementation((_err, host) => {
+                    capturedHost = host;
+                }),
             };
 
             const outboxEventProcessor = new OutboxEventProcessor(
@@ -460,15 +465,20 @@ describe('OutboxEventProcessor', () => {
             await outboxEventProcessor.process(outboxOptions.events[0], outboxTransportEvent, [listener]);
 
             expect(exceptionFilter.catch).toHaveBeenCalledTimes(1);
-            expect(exceptionFilter.catch).toHaveBeenCalledWith(
-                testError,
-                {
-                    eventName: 'newEvent',
-                    eventPayload: { test: 'data' },
-                    eventId: 1,
-                    listenerName: 'failingListener',
-                }
-            );
+            expect(exceptionFilter.catch).toHaveBeenCalledWith(testError, expect.any(OutboxHost));
+
+            expect(capturedHost).not.toBeNull();
+            expect(capturedHost!.getType()).toBe(OUTBOX_CONTEXT_TYPE);
+            expect(isOutboxContext(capturedHost!)).toBe(true);
+
+            const outboxHost = capturedHost as OutboxHost;
+            const context = outboxHost.switchToOutbox().getContext();
+            expect(context).toEqual({
+                eventName: 'newEvent',
+                eventPayload: { test: 'data' },
+                eventId: 1,
+                listenerName: 'failingListener',
+            });
         });
 
         it('Should not call exception filter on successful processing', async () => {
@@ -661,6 +671,33 @@ describe('OutboxEventProcessor', () => {
             await outboxEventProcessor.process(outboxOptions.events[0], outboxTransportEvent, [listener]);
 
             expect(callOrder).toEqual(['middleware.onError', 'exceptionFilter.catch']);
+        });
+
+        it('Should throw when switching to HTTP/RPC/WS context from OutboxHost', () => {
+            const context = {
+                eventName: 'test',
+                eventPayload: {},
+                eventId: 1,
+                listenerName: 'testListener',
+            };
+            const host = new OutboxHost(context);
+
+            expect(() => host.switchToHttp()).toThrow('Cannot switch to HTTP context from outbox context');
+            expect(() => host.switchToRpc()).toThrow('Cannot switch to RPC context from outbox context');
+            expect(() => host.switchToWs()).toThrow('Cannot switch to WebSocket context from outbox context');
+        });
+
+        it('Should provide args via getArgs and getArgByIndex', () => {
+            const context = {
+                eventName: 'test',
+                eventPayload: { foo: 'bar' },
+                eventId: 42,
+                listenerName: 'testListener',
+            };
+            const host = new OutboxHost(context);
+
+            expect(host.getArgs()).toEqual([context]);
+            expect(host.getArgByIndex(0)).toBe(context);
         });
     });
 });

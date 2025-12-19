@@ -1,21 +1,26 @@
+import { ArgumentsHost, ExceptionFilter } from '@nestjs/common';
 import { OutboxEventContext } from '../middleware/outbox-middleware.interface';
+import { OutboxHost } from './outbox-arguments-host';
 
 /**
- * Exception filter interface for handling outbox processing errors.
+ * Type alias for NestJS ExceptionFilter used in outbox context.
  *
- * Unlike NestJS's built-in ExceptionFilter (which requires ArgumentsHost with
- * HTTP/RPC/WS/GraphQL context), this interface is designed for the outbox
- * processing context which runs outside of any request lifecycle.
+ * Uses the standard NestJS ExceptionFilter interface with ArgumentsHost.
+ * The host will be an OutboxHost with type 'outbox', allowing you to use
+ * `host.switchToOutbox().getContext()` to access the OutboxEventContext.
  *
  * @example
  * ```typescript
- * import { Injectable } from '@nestjs/common';
- * import { OutboxExceptionFilter, OutboxEventContext } from '@fullstackhouse/nestjs-outbox';
+ * import { Catch, ArgumentsHost } from '@nestjs/common';
+ * import { OutboxExceptionFilter, isOutboxContext } from '@fullstackhouse/nestjs-outbox';
  * import * as Sentry from '@sentry/node';
  *
- * @Injectable()
- * export class SentryOutboxExceptionFilter implements OutboxExceptionFilter {
- *   catch(exception: Error, context: OutboxEventContext): void {
+ * @Catch()
+ * export class SentryExceptionFilter implements OutboxExceptionFilter {
+ *   catch(exception: Error, host: ArgumentsHost): void {
+ *     if (!isOutboxContext(host)) return;
+ *
+ *     const context = host.switchToOutbox().getContext();
  *     Sentry.captureException(exception, {
  *       tags: {
  *         eventName: context.eventName,
@@ -29,10 +34,26 @@ import { OutboxEventContext } from '../middleware/outbox-middleware.interface';
  *   }
  * }
  * ```
+ *
+ * You can also create a filter that handles both HTTP and outbox contexts:
+ *
+ * @example
+ * ```typescript
+ * @Catch()
+ * export class AllExceptionsFilter implements ExceptionFilter {
+ *   catch(exception: Error, host: ArgumentsHost): void {
+ *     if (isOutboxContext(host)) {
+ *       const ctx = host.switchToOutbox().getContext();
+ *       // Handle outbox error
+ *     } else if (host.getType() === 'http') {
+ *       const ctx = host.switchToHttp();
+ *       // Handle HTTP error
+ *     }
+ *   }
+ * }
+ * ```
  */
-export interface OutboxExceptionFilter {
-  catch(exception: Error, context: OutboxEventContext): void | Promise<void>;
-}
+export type OutboxExceptionFilter<T = any> = ExceptionFilter<T>;
 
 export type OutboxExceptionFilterClass = new (...args: any[]) => OutboxExceptionFilter;
 
