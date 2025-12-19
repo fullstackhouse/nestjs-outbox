@@ -1,5 +1,5 @@
-import { DynamicModule, Logger, Module, Provider } from '@nestjs/common';
-import { DiscoveryModule, ModuleRef } from '@nestjs/core';
+import { DynamicModule, Logger, Module, Provider, Type } from '@nestjs/common';
+import { DiscoveryModule } from '@nestjs/core';
 import { DATABASE_DRIVER_FACTORY_TOKEN } from './driver/database-driver.factory';
 import { TransactionalEventEmitter } from './emitter/transactional-event-emitter';
 import { EventValidator } from './event-validator/event.validator';
@@ -37,7 +37,10 @@ import { EventConfigurationResolver } from './resolver/event-configuration.resol
   exports: [TransactionalEventEmitter],
 })
 export class OutboxModule extends ConfigurableModuleClass {
-  static registerAsync(options: typeof ASYNC_OPTIONS_TYPE): DynamicModule {
+  static registerAsync(
+    options: typeof ASYNC_OPTIONS_TYPE,
+    middlewares: Type<OutboxMiddleware>[] = [],
+  ): DynamicModule {
     const registered = super.registerAsync(options);
 
     return {
@@ -46,6 +49,7 @@ export class OutboxModule extends ConfigurableModuleClass {
       imports: [...registered.imports],
       providers: [
         ...registered.providers,
+        ...middlewares,
         {
           provide: DATABASE_DRIVER_FACTORY_TOKEN,
           useFactory: async (options: OutboxModuleOptions) => {
@@ -62,11 +66,8 @@ export class OutboxModule extends ConfigurableModuleClass {
         } as Provider<any>,
         {
           provide: OUTBOX_MIDDLEWARES_TOKEN,
-          useFactory: (options: OutboxModuleOptions, moduleRef: ModuleRef) => {
-            const middlewareClasses = options.middlewares ?? [];
-            return middlewareClasses.map((middlewareClass) => moduleRef.get(middlewareClass, { strict: false }));
-          },
-          inject: [MODULE_OPTIONS_TOKEN, ModuleRef],
+          useFactory: (...instances: OutboxMiddleware[]) => instances,
+          inject: middlewares,
         } as Provider<any>,
       ],
       exports: [TransactionalEventEmitter],
