@@ -1,6 +1,8 @@
+import { ArgumentsHost, ExceptionFilter } from '@nestjs/common';
 import { vi } from 'vitest';
 import { DatabaseDriverFactory } from "../../driver/database-driver.factory";
 import { DatabaseDriver } from "../../driver/database.driver";
+import { isOutboxContext, OutboxHost, OUTBOX_CONTEXT_TYPE } from "../../filter/outbox-arguments-host";
 import { OutboxModuleOptions } from "../../outbox.module-definition";
 import { IListener } from "../../listener/contract/listener.interface";
 import { OutboxMiddleware } from "../../middleware/outbox-middleware.interface";
@@ -412,6 +414,294 @@ describe('OutboxEventProcessor', () => {
 
             const result = (middleware.afterProcess as ReturnType<typeof vi.fn>).mock.calls[0][1];
             expect(result.durationMs).toBeGreaterThanOrEqual(40);
+        });
+    });
+
+    describe('Exception filters', () => {
+        it('Should call exception filter with ArgumentsHost when listener throws', async () => {
+            outboxOptions.events = [
+                {
+                    name: 'newEvent',
+                    listeners: {
+                        expiresAtTTL: 1000,
+                        readyToRetryAfterTTL: 1000,
+                        maxExecutionTimeTTL: 1000,
+                    },
+                },
+            ];
+
+            const testError = new Error('Test error');
+            const listener: IListener<any> = {
+                handle: vi.fn().mockRejectedValue(testError),
+                getName: vi.fn().mockReturnValue('failingListener'),
+            };
+
+            let capturedHost: ArgumentsHost | null = null;
+            const exceptionFilter: ExceptionFilter = {
+                catch: vi.fn().mockImplementation((_err, host) => {
+                    capturedHost = host;
+                }),
+            };
+
+            const outboxEventProcessor = new OutboxEventProcessor(
+                mockLogger,
+                mockedDriverFactory,
+                mockedEventConfigurationResolver,
+                [],
+                [exceptionFilter]
+            );
+
+            const outboxTransportEvent: OutboxTransportEvent = {
+                readyToRetryAfter: new Date().getTime(),
+                deliveredToListeners: [],
+                eventName: 'newEvent',
+                eventPayload: { test: 'data' },
+                expireAt: new Date().getTime() + 1000,
+                id: 1,
+                insertedAt: new Date().getTime(),
+            };
+
+            await outboxEventProcessor.process(outboxOptions.events[0], outboxTransportEvent, [listener]);
+
+            expect(exceptionFilter.catch).toHaveBeenCalledTimes(1);
+            expect(exceptionFilter.catch).toHaveBeenCalledWith(testError, expect.any(OutboxHost));
+
+            expect(capturedHost).not.toBeNull();
+            expect(capturedHost!.getType()).toBe(OUTBOX_CONTEXT_TYPE);
+            expect(isOutboxContext(capturedHost!)).toBe(true);
+
+            const outboxHost = capturedHost as OutboxHost;
+            const context = outboxHost.switchToOutbox().getContext();
+            expect(context).toEqual({
+                eventName: 'newEvent',
+                eventPayload: { test: 'data' },
+                eventId: 1,
+                listenerName: 'failingListener',
+            });
+        });
+
+        it('Should not call exception filter on successful processing', async () => {
+            outboxOptions.events = [
+                {
+                    name: 'newEvent',
+                    listeners: {
+                        expiresAtTTL: 1000,
+                        readyToRetryAfterTTL: 1000,
+                        maxExecutionTimeTTL: 1000,
+                    },
+                },
+            ];
+
+            const listener: IListener<any> = {
+                handle: vi.fn().mockResolvedValue(undefined),
+                getName: vi.fn().mockReturnValue('successListener'),
+            };
+
+            const exceptionFilter: ExceptionFilter = {
+                catch: vi.fn(),
+            };
+
+            const outboxEventProcessor = new OutboxEventProcessor(
+                mockLogger,
+                mockedDriverFactory,
+                mockedEventConfigurationResolver,
+                [],
+                [exceptionFilter]
+            );
+
+            const outboxTransportEvent: OutboxTransportEvent = {
+                readyToRetryAfter: new Date().getTime(),
+                deliveredToListeners: [],
+                eventName: 'newEvent',
+                eventPayload: {},
+                expireAt: new Date().getTime() + 1000,
+                id: 1,
+                insertedAt: new Date().getTime(),
+            };
+
+            await outboxEventProcessor.process(outboxOptions.events[0], outboxTransportEvent, [listener]);
+
+            expect(exceptionFilter.catch).not.toHaveBeenCalled();
+        });
+
+        it('Should call multiple exception filters in order', async () => {
+            outboxOptions.events = [
+                {
+                    name: 'newEvent',
+                    listeners: {
+                        expiresAtTTL: 1000,
+                        readyToRetryAfterTTL: 1000,
+                        maxExecutionTimeTTL: 1000,
+                    },
+                },
+            ];
+
+            const testError = new Error('Test error');
+            const listener: IListener<any> = {
+                handle: vi.fn().mockRejectedValue(testError),
+                getName: vi.fn().mockReturnValue('failingListener'),
+            };
+
+            const callOrder: string[] = [];
+            const filter1: ExceptionFilter = {
+                catch: vi.fn().mockImplementation(() => callOrder.push('filter1')),
+            };
+            const filter2: ExceptionFilter = {
+                catch: vi.fn().mockImplementation(() => callOrder.push('filter2')),
+            };
+
+            const outboxEventProcessor = new OutboxEventProcessor(
+                mockLogger,
+                mockedDriverFactory,
+                mockedEventConfigurationResolver,
+                [],
+                [filter1, filter2]
+            );
+
+            const outboxTransportEvent: OutboxTransportEvent = {
+                readyToRetryAfter: new Date().getTime(),
+                deliveredToListeners: [],
+                eventName: 'newEvent',
+                eventPayload: {},
+                expireAt: new Date().getTime() + 1000,
+                id: 1,
+                insertedAt: new Date().getTime(),
+            };
+
+            await outboxEventProcessor.process(outboxOptions.events[0], outboxTransportEvent, [listener]);
+
+            expect(callOrder).toEqual(['filter1', 'filter2']);
+        });
+
+        it('Should log error and continue when exception filter throws', async () => {
+            outboxOptions.events = [
+                {
+                    name: 'newEvent',
+                    listeners: {
+                        expiresAtTTL: 1000,
+                        readyToRetryAfterTTL: 1000,
+                        maxExecutionTimeTTL: 1000,
+                    },
+                },
+            ];
+
+            const testError = new Error('Listener error');
+            const listener: IListener<any> = {
+                handle: vi.fn().mockRejectedValue(testError),
+                getName: vi.fn().mockReturnValue('failingListener'),
+            };
+
+            const filterError = new Error('Filter error');
+            const failingFilter: ExceptionFilter = {
+                catch: vi.fn().mockRejectedValue(filterError),
+            };
+            const successFilter: ExceptionFilter = {
+                catch: vi.fn(),
+            };
+
+            const outboxEventProcessor = new OutboxEventProcessor(
+                mockLogger,
+                mockedDriverFactory,
+                mockedEventConfigurationResolver,
+                [],
+                [failingFilter, successFilter]
+            );
+
+            const outboxTransportEvent: OutboxTransportEvent = {
+                readyToRetryAfter: new Date().getTime(),
+                deliveredToListeners: [],
+                eventName: 'newEvent',
+                eventPayload: {},
+                expireAt: new Date().getTime() + 1000,
+                id: 1,
+                insertedAt: new Date().getTime(),
+            };
+
+            await outboxEventProcessor.process(outboxOptions.events[0], outboxTransportEvent, [listener]);
+
+            expect(failingFilter.catch).toHaveBeenCalled();
+            expect(successFilter.catch).toHaveBeenCalled();
+            expect(mockLogger.error).toHaveBeenCalledWith(testError);
+            expect(mockLogger.error).toHaveBeenCalledWith(
+                expect.stringContaining('Exception filter failed'),
+                expect.any(String)
+            );
+        });
+
+        it('Should call exception filters after onError middleware hooks', async () => {
+            outboxOptions.events = [
+                {
+                    name: 'newEvent',
+                    listeners: {
+                        expiresAtTTL: 1000,
+                        readyToRetryAfterTTL: 1000,
+                        maxExecutionTimeTTL: 1000,
+                    },
+                },
+            ];
+
+            const testError = new Error('Test error');
+            const listener: IListener<any> = {
+                handle: vi.fn().mockRejectedValue(testError),
+                getName: vi.fn().mockReturnValue('failingListener'),
+            };
+
+            const callOrder: string[] = [];
+            const middleware: OutboxMiddleware = {
+                onError: vi.fn().mockImplementation(() => callOrder.push('middleware.onError')),
+            };
+            const exceptionFilter: ExceptionFilter = {
+                catch: vi.fn().mockImplementation(() => callOrder.push('exceptionFilter.catch')),
+            };
+
+            const outboxEventProcessor = new OutboxEventProcessor(
+                mockLogger,
+                mockedDriverFactory,
+                mockedEventConfigurationResolver,
+                [middleware],
+                [exceptionFilter]
+            );
+
+            const outboxTransportEvent: OutboxTransportEvent = {
+                readyToRetryAfter: new Date().getTime(),
+                deliveredToListeners: [],
+                eventName: 'newEvent',
+                eventPayload: {},
+                expireAt: new Date().getTime() + 1000,
+                id: 1,
+                insertedAt: new Date().getTime(),
+            };
+
+            await outboxEventProcessor.process(outboxOptions.events[0], outboxTransportEvent, [listener]);
+
+            expect(callOrder).toEqual(['middleware.onError', 'exceptionFilter.catch']);
+        });
+
+        it('Should throw when switching to HTTP/RPC/WS context from OutboxHost', () => {
+            const context = {
+                eventName: 'test',
+                eventPayload: {},
+                eventId: 1,
+                listenerName: 'testListener',
+            };
+            const host = new OutboxHost(context);
+
+            expect(() => host.switchToHttp()).toThrow('Cannot switch to HTTP context from outbox context');
+            expect(() => host.switchToRpc()).toThrow('Cannot switch to RPC context from outbox context');
+            expect(() => host.switchToWs()).toThrow('Cannot switch to WebSocket context from outbox context');
+        });
+
+        it('Should provide args via getArgs and getArgByIndex', () => {
+            const context = {
+                eventName: 'test',
+                eventPayload: { foo: 'bar' },
+                eventId: 42,
+                listenerName: 'testListener',
+            };
+            const host = new OutboxHost(context);
+
+            expect(host.getArgs()).toEqual([context]);
+            expect(host.getArgByIndex(0)).toBe(context);
         });
     });
 });
