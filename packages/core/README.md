@@ -242,87 +242,110 @@ The `PostgreSQLEventListener`:
 
 ## Middleware
 
-Middlewares allow you to intercept and enhance event processing with cross-cutting concerns like logging, tracing, or error reporting.
+Middlewares intercept event processing for cross-cutting concerns like logging, tracing, or error reporting. Middlewares are NestJS injectable classes with full dependency injection support.
 
 ### Creating a Middleware
 
+Implement the `OutboxMiddleware` interface with one or more lifecycle hooks:
+
 ```typescript
-import { Injectable } from '@nestjs/common';
-import { OutboxMiddleware, OutboxMiddlewareContext } from '@fullstackhouse/nestjs-outbox';
+import { Injectable, Logger } from '@nestjs/common';
+import {
+  OutboxMiddleware,
+  OutboxEventContext,
+  OutboxListenerResult,
+} from '@fullstackhouse/nestjs-outbox';
 
 @Injectable()
-export class LoggerMiddleware implements OutboxMiddleware {
-  name = 'logger';
+export class LoggingMiddleware implements OutboxMiddleware {
+  private readonly logger = new Logger(LoggingMiddleware.name);
 
-  async process(
-    context: OutboxMiddlewareContext,
-    next: () => Promise<void>,
-  ): Promise<void> {
-    const startTime = Date.now();
-
-    console.log(`Processing event ${context.event.eventName} for listener ${context.listener.getName()}`);
-
-    try {
-      await next();
-      const duration = Date.now() - startTime;
-      console.log(`Completed in ${duration}ms`);
-    } catch (error) {
-      console.error(`Failed after ${Date.now() - startTime}ms`, error);
-      throw error;
-    }
+  beforeProcess(context: OutboxEventContext): void {
+    this.logger.log(`Processing ${context.eventName} (id=${context.eventId}) → ${context.listenerName}`);
   }
+
+  afterProcess(context: OutboxEventContext, result: OutboxListenerResult): void {
+    this.logger.log(`Completed ${context.eventName} in ${result.durationMs}ms`);
+  }
+
+  onError(context: OutboxEventContext, error: Error): void {
+    this.logger.error(`Failed ${context.eventName}: ${error.message}`);
+  }
+}
+```
+
+### Lifecycle Hooks
+
+| Hook | Description |
+|------|-------------|
+| `beforeProcess(context)` | Called before listener execution |
+| `afterProcess(context, result)` | Called after successful execution with timing info |
+| `onError(context, error)` | Called when listener throws an error |
+| `wrapExecution(context, next)` | Wraps the entire execution for full control |
+
+### Context Objects
+
+**OutboxEventContext**
+```typescript
+interface OutboxEventContext {
+  eventName: string;      // Event class name
+  eventPayload: unknown;  // Deserialized event data
+  eventId: number;        // Database ID of the outbox event
+  listenerName: string;   // Name of the listener being invoked
+}
+```
+
+**OutboxListenerResult** (passed to `afterProcess`)
+```typescript
+interface OutboxListenerResult {
+  success: boolean;
+  error?: Error;
+  durationMs: number;
 }
 ```
 
 ### Registering Middlewares
 
+Use `forRootAsync` to register middleware classes with full DI support:
+
 ```typescript
+import { OutboxModule } from '@fullstackhouse/nestjs-outbox';
+import { MikroORMDatabaseDriverFactory } from '@fullstackhouse/nestjs-outbox-mikro-orm-driver';
+
 @Module({
   imports: [
-    OutboxModule.registerAsync({
-      imports: [MikroOrmModule.forFeature([MikroOrmOutboxTransportEvent])],
-      useFactory: (orm: MikroORM, loggerMiddleware: LoggerMiddleware) => ({
-        driverFactory: new MikroORMDatabaseDriverFactory(orm),
-        events: [/* ... */],
-        retryEveryMilliseconds: 30_000,
-        maxOutboxTransportEventPerRetry: 10,
-        middlewares: [loggerMiddleware],
-      }),
-      inject: [MikroORM, LoggerMiddleware],
-    }),
+    OutboxModule.forRootAsync(
+      {
+        imports: [MikroOrmModule.forFeature([MikroOrmOutboxTransportEvent])],
+        useFactory: (orm: MikroORM) => ({
+          driverFactory: new MikroORMDatabaseDriverFactory(orm),
+          events: [/* ... */],
+          retryEveryMilliseconds: 30_000,
+          maxOutboxTransportEventPerRetry: 10,
+        }),
+        inject: [MikroORM],
+      },
+      [LoggingMiddleware, SentryMiddleware], // Middleware classes
+    ),
   ],
-  providers: [LoggerMiddleware],
 })
 export class AppModule {}
 ```
 
-### Middleware Context
-
-The `OutboxMiddlewareContext` provides access to:
-- `event` - The outbox transport event being processed
-- `listener` - The listener handling the event
-- `eventOptions` - Configuration for the event type
-
-### Common Middleware Use Cases
+### Common Middleware Examples
 
 **Error Reporting (Sentry)**
 ```typescript
 @Injectable()
 export class SentryMiddleware implements OutboxMiddleware {
-  name = 'sentry';
-
-  async process(context: OutboxMiddlewareContext, next: () => Promise<void>): Promise<void> {
-    try {
-      await next();
-    } catch (error) {
-      Sentry.captureException(error, {
-        tags: {
-          eventName: context.event.eventName,
-          listenerName: context.listener.getName(),
-        },
-      });
-      throw error;
-    }
+  onError(context: OutboxEventContext, error: Error): void {
+    Sentry.captureException(error, {
+      tags: {
+        eventName: context.eventName,
+        eventId: String(context.eventId),
+        listenerName: context.listenerName,
+      },
+    });
   }
 }
 ```
@@ -331,25 +354,48 @@ export class SentryMiddleware implements OutboxMiddleware {
 ```typescript
 @Injectable()
 export class TracingMiddleware implements OutboxMiddleware {
-  name = 'tracing';
-
-  async process(context: OutboxMiddlewareContext, next: () => Promise<void>): Promise<void> {
+  async wrapExecution<T>(context: OutboxEventContext, next: () => Promise<T>): Promise<T> {
     const span = tracer.startSpan('outbox.process', {
       attributes: {
-        'event.name': context.event.eventName,
-        'listener.name': context.listener.getName(),
+        'event.name': context.eventName,
+        'event.id': context.eventId,
+        'listener.name': context.listenerName,
       },
     });
 
     try {
-      await next();
+      const result = await next();
       span.setStatus({ code: SpanStatusCode.OK });
+      return result;
     } catch (error) {
       span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
       throw error;
     } finally {
       span.end();
     }
+  }
+}
+```
+
+**Metrics Collection**
+```typescript
+@Injectable()
+export class MetricsMiddleware implements OutboxMiddleware {
+  constructor(private readonly metrics: MetricsService) {}
+
+  afterProcess(context: OutboxEventContext, result: OutboxListenerResult): void {
+    this.metrics.recordHistogram('outbox.processing.duration', result.durationMs, {
+      event: context.eventName,
+      listener: context.listenerName,
+      success: String(result.success),
+    });
+  }
+
+  onError(context: OutboxEventContext, error: Error): void {
+    this.metrics.incrementCounter('outbox.processing.errors', {
+      event: context.eventName,
+      listener: context.listenerName,
+    });
   }
 }
 ```
