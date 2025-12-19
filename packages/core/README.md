@@ -37,6 +37,9 @@ npm install @fullstackhouse/nestjs-outbox
 npm install @fullstackhouse/nestjs-outbox-typeorm-driver
 # or
 npm install @fullstackhouse/nestjs-outbox-mikro-orm-driver
+
+# Optional: OpenTelemetry tracing
+npm install @fullstackhouse/nestjs-outbox-tracing
 ```
 
 ## Quick Start
@@ -369,31 +372,36 @@ export class SentryMiddleware implements OutboxMiddleware {
 ```
 
 **OpenTelemetry Tracing**
-```typescript
-@Injectable()
-export class TracingMiddleware implements OutboxMiddleware {
-  async wrapExecution<T>(context: OutboxEventContext, next: () => Promise<T>): Promise<T> {
-    const span = tracer.startSpan('outbox.process', {
-      attributes: {
-        'event.name': context.eventName,
-        'event.id': context.eventId,
-        'listener.name': context.listenerName,
-      },
-    });
 
-    try {
-      const result = await next();
-      span.setStatus({ code: SpanStatusCode.OK });
-      return result;
-    } catch (error) {
-      span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
-      throw error;
-    } finally {
-      span.end();
-    }
-  }
-}
+Use the `@fullstackhouse/nestjs-outbox-tracing` package for built-in OpenTelemetry support:
+
+```typescript
+import { TracingOutboxMiddleware, TRACING_OUTBOX_OPTIONS } from '@fullstackhouse/nestjs-outbox-tracing';
+
+@Module({
+  imports: [
+    OutboxModule.registerAsync({
+      // ...
+      middlewares: [TracingOutboxMiddleware],
+    }),
+  ],
+  providers: [
+    {
+      provide: TRACING_OUTBOX_OPTIONS,
+      useValue: {
+        tracerName: 'my-service',           // default: 'nestjs-outbox'
+        traceContextFieldName: '_trace',    // default: '_traceContext'
+      },
+    },
+  ],
+})
+export class AppModule {}
 ```
+
+The middleware:
+- Injects trace context into events via `beforeEmit` for distributed tracing
+- Creates consumer spans with `outbox.event_id`, `outbox.event_name`, `outbox.listener` attributes
+- Extracts parent context from event payload to link producer and consumer spans
 
 **Metrics Collection**
 ```typescript

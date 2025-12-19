@@ -1,0 +1,40 @@
+{
+  "name": "@fullstackhouse/nestjs-outbox-tracing",
+  "version": "3.0.0",
+  "description": "OpenTelemetry tracing middleware for NestJS Outbox",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/fullstackhouse/nestjs-outbox.git"
+  },
+  "scripts": {
+    "build": "tsc",
+    "tsc:publish": "tsc && npm publish",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "author": "Full Stack House",
+  "license": "MIT",
+  "peerDependencies": {
+    "@fullstackhouse/nestjs-outbox": "^3.0.0",
+    "@nestjs/common": "^10.0.0 || ^11.0.0",
+    "@opentelemetry/api": "^1.0.0"
+  },
+  "devDependencies": {
+    "@fullstackhouse/nestjs-outbox": "^3.0.0",
+    "@nestjs/common": "^11.0.0",
+    "@nestjs/core": "^11.0.0",
+    "@nestjs/testing": "^11.0.0",
+    "@opentelemetry/api": "^1.9.0",
+    "@swc/core": "^1.7.42",
+    "@types/node": "^20.16.5",
+    "typescript": "^5.6.2",
+    "unplugin-swc": "^1.5.1",
+    "vitest": "^2.1.1"
+  },
+  "gitHead": "010c167e60c596cb1aabf28186242a095c351e59"
+}
