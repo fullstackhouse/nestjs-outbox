@@ -1,6 +1,4 @@
-import { ArgumentsHost, ExceptionFilter } from '@nestjs/common';
-import { OutboxEventContext } from '../middleware/outbox-middleware.interface';
-import { OutboxHost } from './outbox-arguments-host';
+import { ExceptionFilter } from '@nestjs/common';
 
 /**
  * Type alias for NestJS ExceptionFilter used in outbox context.
@@ -9,14 +7,35 @@ import { OutboxHost } from './outbox-arguments-host';
  * The host will be an OutboxHost with type 'outbox', allowing you to use
  * `host.switchToOutbox().getContext()` to access the OutboxEventContext.
  *
+ * Register your exception filter globally using NestJS's APP_FILTER token:
+ *
  * @example
  * ```typescript
- * import { Catch, ArgumentsHost } from '@nestjs/common';
- * import { OutboxExceptionFilter, isOutboxContext } from '@fullstackhouse/nestjs-outbox';
+ * // app.module.ts
+ * import { Module } from '@nestjs/common';
+ * import { APP_FILTER } from '@nestjs/core';
+ * import { SentryExceptionFilter } from './sentry-exception.filter';
+ *
+ * @Module({
+ *   providers: [
+ *     {
+ *       provide: APP_FILTER,
+ *       useClass: SentryExceptionFilter,
+ *     },
+ *   ],
+ * })
+ * export class AppModule {}
+ * ```
+ *
+ * @example
+ * ```typescript
+ * // sentry-exception.filter.ts
+ * import { Catch, ArgumentsHost, ExceptionFilter } from '@nestjs/common';
+ * import { isOutboxContext } from '@fullstackhouse/nestjs-outbox';
  * import * as Sentry from '@sentry/node';
  *
  * @Catch()
- * export class SentryExceptionFilter implements OutboxExceptionFilter {
+ * export class SentryExceptionFilter implements ExceptionFilter {
  *   catch(exception: Error, host: ArgumentsHost): void {
  *     if (!isOutboxContext(host)) return;
  *
@@ -54,7 +73,3 @@ import { OutboxHost } from './outbox-arguments-host';
  * ```
  */
 export type OutboxExceptionFilter<T = any> = ExceptionFilter<T>;
-
-export type OutboxExceptionFilterClass = new (...args: any[]) => OutboxExceptionFilter;
-
-export const OUTBOX_EXCEPTION_FILTERS_TOKEN = 'OUTBOX_EXCEPTION_FILTERS_TOKEN';

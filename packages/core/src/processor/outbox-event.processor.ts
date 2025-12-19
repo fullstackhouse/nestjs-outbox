@@ -1,7 +1,7 @@
-import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { ExceptionFilter, Inject, Injectable, Logger, Optional } from '@nestjs/common';
+import { APP_FILTER } from '@nestjs/core';
 import { DATABASE_DRIVER_FACTORY_TOKEN, DatabaseDriverFactory } from '../driver/database-driver.factory';
 import { OutboxHost } from '../filter/outbox-arguments-host';
-import { OutboxExceptionFilter, OUTBOX_EXCEPTION_FILTERS_TOKEN } from '../filter/outbox-exception-filter.interface';
 import { OutboxModuleEventOptions } from '../outbox.module-definition';
 import { IListener } from '../listener/contract/listener.interface';
 import { OutboxTransportEvent } from '../model/outbox-transport-event.interface';
@@ -22,7 +22,7 @@ export class OutboxEventProcessor implements OutboxEventProcessorContract {
     @Inject(DATABASE_DRIVER_FACTORY_TOKEN) private databaseDriverFactory: DatabaseDriverFactory,
     @Inject(EVENT_CONFIGURATION_RESOLVER_TOKEN) private eventConfigurationResolver: EventConfigurationResolverContract,
     @Optional() @Inject(OUTBOX_MIDDLEWARES_TOKEN) private middlewares: OutboxMiddleware[] = [],
-    @Optional() @Inject(OUTBOX_EXCEPTION_FILTERS_TOKEN) private exceptionFilters: OutboxExceptionFilter[] = [],
+    @Optional() @Inject(APP_FILTER) private exceptionFilters: ExceptionFilter[] = [],
   ) {}
 
   async process<TPayload>(eventOptions: OutboxModuleEventOptions, outboxTransportEvent: OutboxTransportEvent, listeners: IListener<TPayload>[]) {
@@ -151,7 +151,8 @@ export class OutboxEventProcessor implements OutboxEventProcessorContract {
 
   private async invokeExceptionFilters(context: OutboxEventContext, error: Error): Promise<void> {
     const host = new OutboxHost(context);
-    for (const filter of this.exceptionFilters) {
+    const filters = Array.isArray(this.exceptionFilters) ? this.exceptionFilters : [this.exceptionFilters].filter(Boolean);
+    for (const filter of filters) {
       try {
         await filter.catch(error, host);
       } catch (filterError) {

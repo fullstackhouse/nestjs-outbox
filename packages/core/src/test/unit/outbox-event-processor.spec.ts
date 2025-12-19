@@ -1,9 +1,8 @@
-import { ArgumentsHost } from '@nestjs/common';
+import { ArgumentsHost, ExceptionFilter } from '@nestjs/common';
 import { vi } from 'vitest';
 import { DatabaseDriverFactory } from "../../driver/database-driver.factory";
 import { DatabaseDriver } from "../../driver/database.driver";
 import { isOutboxContext, OutboxHost, OUTBOX_CONTEXT_TYPE } from "../../filter/outbox-arguments-host";
-import { OutboxExceptionFilter } from "../../filter/outbox-exception-filter.interface";
 import { OutboxModuleOptions } from "../../outbox.module-definition";
 import { IListener } from "../../listener/contract/listener.interface";
 import { OutboxMiddleware } from "../../middleware/outbox-middleware.interface";
@@ -438,7 +437,7 @@ describe('OutboxEventProcessor', () => {
             };
 
             let capturedHost: ArgumentsHost | null = null;
-            const exceptionFilter: OutboxExceptionFilter = {
+            const exceptionFilter: ExceptionFilter = {
                 catch: vi.fn().mockImplementation((_err, host) => {
                     capturedHost = host;
                 }),
@@ -498,7 +497,7 @@ describe('OutboxEventProcessor', () => {
                 getName: vi.fn().mockReturnValue('successListener'),
             };
 
-            const exceptionFilter: OutboxExceptionFilter = {
+            const exceptionFilter: ExceptionFilter = {
                 catch: vi.fn(),
             };
 
@@ -544,10 +543,10 @@ describe('OutboxEventProcessor', () => {
             };
 
             const callOrder: string[] = [];
-            const filter1: OutboxExceptionFilter = {
+            const filter1: ExceptionFilter = {
                 catch: vi.fn().mockImplementation(() => callOrder.push('filter1')),
             };
-            const filter2: OutboxExceptionFilter = {
+            const filter2: ExceptionFilter = {
                 catch: vi.fn().mockImplementation(() => callOrder.push('filter2')),
             };
 
@@ -592,10 +591,10 @@ describe('OutboxEventProcessor', () => {
                 getName: vi.fn().mockReturnValue('failingListener'),
             };
 
-            const failingFilter: OutboxExceptionFilter = {
+            const failingFilter: ExceptionFilter = {
                 catch: vi.fn().mockRejectedValue(new Error('Filter error')),
             };
-            const successFilter: OutboxExceptionFilter = {
+            const successFilter: ExceptionFilter = {
                 catch: vi.fn(),
             };
 
@@ -646,7 +645,7 @@ describe('OutboxEventProcessor', () => {
             const middleware: OutboxMiddleware = {
                 onError: vi.fn().mockImplementation(() => callOrder.push('middleware.onError')),
             };
-            const exceptionFilter: OutboxExceptionFilter = {
+            const exceptionFilter: ExceptionFilter = {
                 catch: vi.fn().mockImplementation(() => callOrder.push('exceptionFilter.catch')),
             };
 
