@@ -32,19 +32,32 @@ describe('LoggerMiddleware', () => {
   });
 
   describe('beforeProcess', () => {
-    it('should log event processing start', () => {
+    it('should log OUTBOX START with context', () => {
       const context = createContext();
 
       middleware.beforeProcess(context);
 
-      expect(mockLogger.log).toHaveBeenCalledWith(
-        'Processing TestEvent (id=123) → TestListener'
-      );
+      expect(mockLogger.log).toHaveBeenCalledWith('OUTBOX START TestEvent', {
+        eventId: 123,
+        listener: 'TestListener',
+        payload: '{"data":"test"}',
+      });
+    });
+
+    it('should truncate long payloads', () => {
+      const longPayload = { data: 'x'.repeat(300) };
+      const context = createContext({ eventPayload: longPayload });
+
+      middleware.beforeProcess(context);
+
+      const logCall = mockLogger.log.mock.calls[0];
+      expect(logCall[1].payload.length).toBeLessThanOrEqual(203);
+      expect(logCall[1].payload).toMatch(/\.\.\.$/);
     });
   });
 
   describe('afterProcess', () => {
-    it('should log completion on success', () => {
+    it('should log OUTBOX END on success', () => {
       const context = createContext();
       const result: OutboxListenerResult = {
         success: true,
@@ -53,35 +66,49 @@ describe('LoggerMiddleware', () => {
 
       middleware.afterProcess(context, result);
 
-      expect(mockLogger.log).toHaveBeenCalledWith(
-        'Completed TestEvent (id=123) → TestListener in 42ms'
-      );
+      expect(mockLogger.log).toHaveBeenCalledWith('OUTBOX END   TestEvent', {
+        eventId: 123,
+        listener: 'TestListener',
+        payload: '{"data":"test"}',
+        processTime: 42,
+      });
     });
 
-    it('should not log on failure', () => {
+    it('should log OUTBOX FAIL on failure', () => {
       const context = createContext();
       const result: OutboxListenerResult = {
         success: false,
-        error: new Error('test'),
+        error: new Error('Something went wrong'),
         durationMs: 10,
       };
 
       middleware.afterProcess(context, result);
 
-      expect(mockLogger.log).not.toHaveBeenCalled();
+      expect(mockLogger.error).toHaveBeenCalledWith('OUTBOX FAIL  TestEvent', {
+        eventId: 123,
+        listener: 'TestListener',
+        payload: '{"data":"test"}',
+        processTime: 10,
+        error: 'Something went wrong',
+      });
     });
-  });
 
-  describe('onError', () => {
-    it('should log error message', () => {
+    it('should handle missing error message', () => {
       const context = createContext();
-      const error = new Error('Something went wrong');
+      const result: OutboxListenerResult = {
+        success: false,
+        durationMs: 10,
+      };
 
-      middleware.onError(context, error);
+      middleware.afterProcess(context, result);
 
-      expect(mockLogger.error).toHaveBeenCalledWith(
-        'Failed TestEvent (id=123) → TestListener: Something went wrong'
-      );
+      expect(mockLogger.error).toHaveBeenCalledWith('OUTBOX FAIL  TestEvent', {
+        eventId: 123,
+        listener: 'TestListener',
+        payload: '{"data":"test"}',
+        processTime: 10,
+        error: 'Unknown error',
+      });
     });
   });
 });
