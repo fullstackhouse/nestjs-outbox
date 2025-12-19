@@ -12,6 +12,7 @@ A NestJS module implementing the [Transactional Outbox Pattern](https://microser
 - **Graceful Shutdown**: In-flight events complete before application terminates
 - **Multiple ORMs**: TypeORM and MikroORM drivers included
 - **Flexible Processing**: Immediate or deferred event processing per event type
+- **Middleware Support**: Intercept event processing for logging, tracing, and error reporting
 
 ## How It Works
 
@@ -238,6 +239,164 @@ The `PostgreSQLEventListener`:
 - Automatically reconnects on connection failures (configurable delay, default 5s)
 - Works alongside polling as a fallback mechanism
 - Requires the LISTEN/NOTIFY migration from `OutboxMigrations`
+
+## Middleware
+
+Middlewares intercept event processing for cross-cutting concerns like logging, tracing, or error reporting. Middlewares are NestJS injectable classes with full dependency injection support.
+
+### Creating a Middleware
+
+Implement the `OutboxMiddleware` interface with one or more lifecycle hooks:
+
+```typescript
+import { Injectable, Logger } from '@nestjs/common';
+import {
+  OutboxMiddleware,
+  OutboxEventContext,
+  OutboxListenerResult,
+} from '@fullstackhouse/nestjs-outbox';
+
+@Injectable()
+export class LoggingMiddleware implements OutboxMiddleware {
+  private readonly logger = new Logger(LoggingMiddleware.name);
+
+  beforeProcess(context: OutboxEventContext): void {
+    this.logger.log(`Processing ${context.eventName} (id=${context.eventId}) → ${context.listenerName}`);
+  }
+
+  afterProcess(context: OutboxEventContext, result: OutboxListenerResult): void {
+    this.logger.log(`Completed ${context.eventName} in ${result.durationMs}ms`);
+  }
+
+  onError(context: OutboxEventContext, error: Error): void {
+    this.logger.error(`Failed ${context.eventName}: ${error.message}`);
+  }
+}
+```
+
+### Lifecycle Hooks
+
+| Hook | Description |
+|------|-------------|
+| `beforeProcess(context)` | Called before listener execution |
+| `afterProcess(context, result)` | Called after successful execution with timing info |
+| `onError(context, error)` | Called when listener throws an error |
+| `wrapExecution(context, next)` | Wraps the entire execution for full control |
+
+### Context Objects
+
+**OutboxEventContext**
+```typescript
+interface OutboxEventContext {
+  eventName: string;      // Event class name
+  eventPayload: unknown;  // Deserialized event data
+  eventId: number;        // Database ID of the outbox event
+  listenerName: string;   // Name of the listener being invoked
+}
+```
+
+**OutboxListenerResult** (passed to `afterProcess`)
+```typescript
+interface OutboxListenerResult {
+  success: boolean;
+  error?: Error;
+  durationMs: number;
+}
+```
+
+### Registering Middlewares
+
+Pass middleware classes via the `middlewares` option. The module registers them as providers and injects their instances:
+
+```typescript
+import { OutboxModule } from '@fullstackhouse/nestjs-outbox';
+import { MikroORMDatabaseDriverFactory } from '@fullstackhouse/nestjs-outbox-mikro-orm-driver';
+
+@Module({
+  imports: [
+    OutboxModule.registerAsync({
+      imports: [MikroOrmModule.forFeature([MikroOrmOutboxTransportEvent])],
+      useFactory: (orm: MikroORM) => ({
+        driverFactory: new MikroORMDatabaseDriverFactory(orm),
+        events: [/* ... */],
+        retryEveryMilliseconds: 30_000,
+        maxOutboxTransportEventPerRetry: 10,
+      }),
+      inject: [MikroORM],
+      middlewares: [LoggingMiddleware, SentryMiddleware],
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+### Common Middleware Examples
+
+**Error Reporting (Sentry)**
+```typescript
+@Injectable()
+export class SentryMiddleware implements OutboxMiddleware {
+  onError(context: OutboxEventContext, error: Error): void {
+    Sentry.captureException(error, {
+      tags: {
+        eventName: context.eventName,
+        eventId: String(context.eventId),
+        listenerName: context.listenerName,
+      },
+    });
+  }
+}
+```
+
+**OpenTelemetry Tracing**
+```typescript
+@Injectable()
+export class TracingMiddleware implements OutboxMiddleware {
+  async wrapExecution<T>(context: OutboxEventContext, next: () => Promise<T>): Promise<T> {
+    const span = tracer.startSpan('outbox.process', {
+      attributes: {
+        'event.name': context.eventName,
+        'event.id': context.eventId,
+        'listener.name': context.listenerName,
+      },
+    });
+
+    try {
+      const result = await next();
+      span.setStatus({ code: SpanStatusCode.OK });
+      return result;
+    } catch (error) {
+      span.setStatus({ code: SpanStatusCode.ERROR, message: error.message });
+      throw error;
+    } finally {
+      span.end();
+    }
+  }
+}
+```
+
+**Metrics Collection**
+```typescript
+@Injectable()
+export class MetricsMiddleware implements OutboxMiddleware {
+  constructor(private readonly metrics: MetricsService) {}
+
+  afterProcess(context: OutboxEventContext, result: OutboxListenerResult): void {
+    this.metrics.recordHistogram('outbox.processing.duration', result.durationMs, {
+      event: context.eventName,
+      listener: context.listenerName,
+      success: String(result.success),
+    });
+  }
+
+  onError(context: OutboxEventContext, error: Error): void {
+    this.metrics.incrementCounter('outbox.processing.errors', {
+      event: context.eventName,
+      listener: context.listenerName,
+    });
+  }
+}
+```
 
 ## Graceful Shutdown
 

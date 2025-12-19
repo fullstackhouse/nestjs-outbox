@@ -1,5 +1,6 @@
-import { ConfigurableModuleBuilder } from '@nestjs/common';
+import { ConfigurableModuleBuilder, Type } from '@nestjs/common';
 import { DatabaseDriverFactory } from './driver/database-driver.factory';
+import { OutboxMiddleware } from './middleware/outbox-middleware.interface';
 
 export interface OutboxModuleEventOptions {
   name: string;
@@ -29,6 +30,11 @@ export const { ConfigurableModuleClass, MODULE_OPTIONS_TOKEN, ASYNC_OPTIONS_TYPE
   .setExtras(
     {
       isGlobal: true,
+      /**
+       * Middleware classes for event processing hooks.
+       * Classes are registered as providers and instantiated via NestJS DI.
+       */
+      middlewares: [] as Type<OutboxMiddleware>[],
     },
     (definition, extras) => ({
       ...definition,

@@ -1,10 +1,11 @@
 import { DynamicModule, Logger, Module, Provider } from '@nestjs/common';
 import { DiscoveryModule } from '@nestjs/core';
-import { DATABASE_DRIVER_FACTORY_TOKEN, DatabaseDriverFactory } from './driver/database-driver.factory';
+import { DATABASE_DRIVER_FACTORY_TOKEN } from './driver/database-driver.factory';
 import { TransactionalEventEmitter } from './emitter/transactional-event-emitter';
 import { EventValidator } from './event-validator/event.validator';
 import { ASYNC_OPTIONS_TYPE, ConfigurableModuleClass, OutboxModuleOptions, MODULE_OPTIONS_TOKEN } from './outbox.module-definition';
 import { ListenerDiscovery } from './listener/discovery/listener.discovery';
+import { OutboxMiddleware, OUTBOX_MIDDLEWARES_TOKEN } from './middleware/outbox-middleware.interface';
 import { EVENT_LISTENER_TOKEN } from './poller/event-listener.interface';
 import { RetryableOutboxEventPoller } from './poller/retryable-outbox-event.poller';
 import { OUTBOX_EVENT_PROCESSOR_TOKEN } from './processor/outbox-event-processor.contract';
@@ -18,10 +19,7 @@ import { EventConfigurationResolver } from './resolver/event-configuration.resol
     Logger,
     {
       provide: OUTBOX_EVENT_PROCESSOR_TOKEN,
-      useFactory: (logger: Logger, databaseDriverFactory: DatabaseDriverFactory, eventConfigurationResolver: EventConfigurationResolver) => {
-        return new OutboxEventProcessor(logger, databaseDriverFactory, eventConfigurationResolver);
-      },
-      inject: [Logger, DATABASE_DRIVER_FACTORY_TOKEN, EventConfigurationResolver],
+      useClass: OutboxEventProcessor,
     },
     {
       provide: EVENT_CONFIGURATION_RESOLVER_TOKEN,
@@ -41,6 +39,7 @@ import { EventConfigurationResolver } from './resolver/event-configuration.resol
 export class OutboxModule extends ConfigurableModuleClass {
   static registerAsync(options: typeof ASYNC_OPTIONS_TYPE): DynamicModule {
     const registered = super.registerAsync(options);
+    const middlewares = options.middlewares ?? [];
 
     return {
       ...registered,
@@ -48,19 +47,25 @@ export class OutboxModule extends ConfigurableModuleClass {
       imports: [...registered.imports],
       providers: [
         ...registered.providers,
+        ...middlewares,
         {
           provide: DATABASE_DRIVER_FACTORY_TOKEN,
-          useFactory: async (options: OutboxModuleOptions) => {
-            return options.driverFactory;
+          useFactory: async (moduleOptions: OutboxModuleOptions) => {
+            return moduleOptions.driverFactory;
           },
           inject: [MODULE_OPTIONS_TOKEN],
         } as Provider<any>,
         {
           provide: EVENT_LISTENER_TOKEN,
-          useFactory: async (options: OutboxModuleOptions) => {
-            return options.driverFactory.getEventListener?.() ?? null;
+          useFactory: async (moduleOptions: OutboxModuleOptions) => {
+            return moduleOptions.driverFactory.getEventListener?.() ?? null;
           },
           inject: [MODULE_OPTIONS_TOKEN],
+        } as Provider<any>,
+        {
+          provide: OUTBOX_MIDDLEWARES_TOKEN,
+          useFactory: (...instances: OutboxMiddleware[]) => instances,
+          inject: middlewares,
         } as Provider<any>,
       ],
       exports: [TransactionalEventEmitter],
