@@ -1,5 +1,6 @@
 import { Inject, Injectable, Logger, Optional } from '@nestjs/common';
 import { DATABASE_DRIVER_FACTORY_TOKEN, DatabaseDriverFactory } from '../driver/database-driver.factory';
+import { OutboxExceptionFilter, OUTBOX_EXCEPTION_FILTERS_TOKEN } from '../filter/outbox-exception-filter.interface';
 import { OutboxModuleEventOptions } from '../outbox.module-definition';
 import { IListener } from '../listener/contract/listener.interface';
 import { OutboxTransportEvent } from '../model/outbox-transport-event.interface';
@@ -20,6 +21,7 @@ export class OutboxEventProcessor implements OutboxEventProcessorContract {
     @Inject(DATABASE_DRIVER_FACTORY_TOKEN) private databaseDriverFactory: DatabaseDriverFactory,
     @Inject(EVENT_CONFIGURATION_RESOLVER_TOKEN) private eventConfigurationResolver: EventConfigurationResolverContract,
     @Optional() @Inject(OUTBOX_MIDDLEWARES_TOKEN) private middlewares: OutboxMiddleware[] = [],
+    @Optional() @Inject(OUTBOX_EXCEPTION_FILTERS_TOKEN) private exceptionFilters: OutboxExceptionFilter[] = [],
   ) {}
 
   async process<TPayload>(eventOptions: OutboxModuleEventOptions, outboxTransportEvent: OutboxTransportEvent, listeners: IListener<TPayload>[]) {
@@ -76,6 +78,7 @@ export class OutboxEventProcessor implements OutboxEventProcessorContract {
           );
 
           await this.invokeOnErrorHooks(context, timeoutError);
+          await this.invokeExceptionFilters(context, timeoutError);
           await this.invokeAfterProcessHooks(context, { success: false, error: timeoutError, durationMs });
 
           resolve({
@@ -104,6 +107,7 @@ export class OutboxEventProcessor implements OutboxEventProcessorContract {
         this.logger.error(exception);
 
         await this.invokeOnErrorHooks(context, error);
+        await this.invokeExceptionFilters(context, error);
         await this.invokeAfterProcessHooks(context, { success: false, error, durationMs });
 
         resolve({
@@ -140,6 +144,16 @@ export class OutboxEventProcessor implements OutboxEventProcessorContract {
         await middleware.onError?.(context, error);
       } catch (hookError) {
         this.logger.warn(`Middleware onError hook failed: ${hookError}`);
+      }
+    }
+  }
+
+  private async invokeExceptionFilters(context: OutboxEventContext, error: Error): Promise<void> {
+    for (const filter of this.exceptionFilters) {
+      try {
+        await filter.catch(error, context);
+      } catch (filterError) {
+        this.logger.warn(`Exception filter failed: ${filterError}`);
       }
     }
   }

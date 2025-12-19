@@ -1,5 +1,6 @@
 import { ConfigurableModuleBuilder, Type } from '@nestjs/common';
 import { DatabaseDriverFactory } from './driver/database-driver.factory';
+import { OutboxExceptionFilter } from './filter/outbox-exception-filter.interface';
 import { OutboxMiddleware } from './middleware/outbox-middleware.interface';
 
 export interface OutboxModuleEventOptions {
@@ -40,6 +41,13 @@ export const { ConfigurableModuleClass, MODULE_OPTIONS_TOKEN, ASYNC_OPTIONS_TYPE
        * Classes are registered as providers and instantiated via NestJS DI.
        */
       middlewares: [] as Type<OutboxMiddleware>[],
+      /**
+       * Exception filter classes for handling outbox processing errors.
+       * Classes are registered as providers and instantiated via NestJS DI.
+       * Filters receive errors after middleware onError hooks, enabling
+       * integration with error reporting services (e.g., Sentry via @SentryExceptionCaptured()).
+       */
+      exceptionFilters: [] as Type<OutboxExceptionFilter>[],
     },
     (definition, extras) => ({
       ...definition,
