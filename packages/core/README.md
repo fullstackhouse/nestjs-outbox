@@ -306,7 +306,7 @@ interface OutboxListenerResult {
 
 ### Registering Middlewares
 
-Use `forRootAsync` to register middleware classes with full DI support:
+Pass middleware classes via the `middlewares` option. Middleware classes must be registered as providers (either in the same module or imported):
 
 ```typescript
 import { OutboxModule } from '@fullstackhouse/nestjs-outbox';
@@ -314,20 +314,19 @@ import { MikroORMDatabaseDriverFactory } from '@fullstackhouse/nestjs-outbox-mik
 
 @Module({
   imports: [
-    OutboxModule.forRootAsync(
-      {
-        imports: [MikroOrmModule.forFeature([MikroOrmOutboxTransportEvent])],
-        useFactory: (orm: MikroORM) => ({
-          driverFactory: new MikroORMDatabaseDriverFactory(orm),
-          events: [/* ... */],
-          retryEveryMilliseconds: 30_000,
-          maxOutboxTransportEventPerRetry: 10,
-        }),
-        inject: [MikroORM],
-      },
-      [LoggingMiddleware, SentryMiddleware], // Middleware classes
-    ),
+    OutboxModule.registerAsync({
+      imports: [MikroOrmModule.forFeature([MikroOrmOutboxTransportEvent])],
+      useFactory: (orm: MikroORM) => ({
+        driverFactory: new MikroORMDatabaseDriverFactory(orm),
+        events: [/* ... */],
+        retryEveryMilliseconds: 30_000,
+        maxOutboxTransportEventPerRetry: 10,
+        middlewares: [LoggingMiddleware, SentryMiddleware],
+      }),
+      inject: [MikroORM],
+    }),
   ],
+  providers: [LoggingMiddleware, SentryMiddleware],
 })
 export class AppModule {}
 ```
