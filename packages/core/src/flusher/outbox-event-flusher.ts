@@ -27,10 +27,17 @@ export class OutboxEventFlusher {
 
     for (const event of pendingEvents) {
       const eventConfig = this.eventConfigurationResolver.resolve(event.eventName);
-      const listeners = this.transactionalEventEmitter.getListeners(event.eventName);
+      const allListeners = this.transactionalEventEmitter.getListeners(event.eventName);
+      const pendingListeners = allListeners.filter(
+        (listener) => !event.deliveredToListeners.includes(listener.getName())
+      );
+
+      if (pendingListeners.length === 0) {
+        continue;
+      }
 
       try {
-        await this.outboxEventProcessor.process(eventConfig, event, listeners);
+        await this.outboxEventProcessor.process(eventConfig, event, pendingListeners);
         processedCount++;
       } catch {
         failedCount++;

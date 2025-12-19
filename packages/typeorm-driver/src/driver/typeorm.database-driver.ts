@@ -60,11 +60,6 @@ export class TypeORMDatabaseDriver implements DatabaseDriver {
   }
 
   async findPendingEvents(limit: number): Promise<OutboxTransportEvent[]> {
-    return this.dataSource
-      .getRepository(TypeOrmOutboxTransportEvent)
-      .createQueryBuilder('event')
-      .where('json_array_length(event.delivered_to_listeners) = 0')
-      .limit(limit)
-      .getMany();
+    return this.dataSource.getRepository(TypeOrmOutboxTransportEvent).find({ take: limit });
   }
 }

@@ -96,6 +96,11 @@ describe('OutboxEventFlusher', () => {
     });
 
     it('should count failed events when processor throws', async () => {
+        const listener: IListener<any> = {
+            handle: vi.fn(),
+            getName: vi.fn().mockReturnValue('testListener'),
+        };
+
         const pendingEvents: OutboxTransportEvent[] = [
             {
                 id: 1,
@@ -128,7 +133,7 @@ describe('OutboxEventFlusher', () => {
 
         (mockedDriver.findPendingEvents as ReturnType<typeof vi.fn>).mockResolvedValue(pendingEvents);
         (mockedEventConfigurationResolver.resolve as ReturnType<typeof vi.fn>).mockReturnValue(eventConfig);
-        (mockedTransactionalEventEmitter.getListeners as ReturnType<typeof vi.fn>).mockReturnValue([]);
+        (mockedTransactionalEventEmitter.getListeners as ReturnType<typeof vi.fn>).mockReturnValue([listener]);
         (mockedOutboxEventProcessor.process as ReturnType<typeof vi.fn>)
             .mockResolvedValueOnce(undefined)
             .mockRejectedValueOnce(new Error('Processing failed'));
@@ -136,6 +141,76 @@ describe('OutboxEventFlusher', () => {
         const result = await flusher.processAllPendingEvents();
 
         expect(result).toEqual({ processedCount: 1, failedCount: 1 });
+    });
+
+    it('should only process listeners not yet delivered to', async () => {
+        const listener1: IListener<any> = { handle: vi.fn(), getName: vi.fn().mockReturnValue('listener1') };
+        const listener2: IListener<any> = { handle: vi.fn(), getName: vi.fn().mockReturnValue('listener2') };
+        const listener3: IListener<any> = { handle: vi.fn(), getName: vi.fn().mockReturnValue('listener3') };
+
+        const eventWithPartialDelivery: OutboxTransportEvent = {
+            id: 1,
+            eventName: 'TestEvent',
+            eventPayload: {},
+            deliveredToListeners: ['listener1'],
+            readyToRetryAfter: Date.now(),
+            expireAt: Date.now() + 1000,
+            insertedAt: Date.now(),
+        };
+
+        const eventConfig = {
+            name: 'TestEvent',
+            listeners: {
+                expiresAtTTL: 1000,
+                readyToRetryAfterTTL: 1000,
+                maxExecutionTimeTTL: 1000,
+            },
+        };
+
+        (mockedDriver.findPendingEvents as ReturnType<typeof vi.fn>).mockResolvedValue([eventWithPartialDelivery]);
+        (mockedEventConfigurationResolver.resolve as ReturnType<typeof vi.fn>).mockReturnValue(eventConfig);
+        (mockedTransactionalEventEmitter.getListeners as ReturnType<typeof vi.fn>).mockReturnValue([listener1, listener2, listener3]);
+        (mockedOutboxEventProcessor.process as ReturnType<typeof vi.fn>).mockResolvedValue(undefined);
+
+        await flusher.processAllPendingEvents();
+
+        expect(mockedOutboxEventProcessor.process).toHaveBeenCalledWith(
+            eventConfig,
+            eventWithPartialDelivery,
+            [listener2, listener3]
+        );
+    });
+
+    it('should skip events where all listeners have been delivered to', async () => {
+        const listener: IListener<any> = { handle: vi.fn(), getName: vi.fn().mockReturnValue('listener1') };
+
+        const fullyDeliveredEvent: OutboxTransportEvent = {
+            id: 1,
+            eventName: 'TestEvent',
+            eventPayload: {},
+            deliveredToListeners: ['listener1'],
+            readyToRetryAfter: Date.now(),
+            expireAt: Date.now() + 1000,
+            insertedAt: Date.now(),
+        };
+
+        const eventConfig = {
+            name: 'TestEvent',
+            listeners: {
+                expiresAtTTL: 1000,
+                readyToRetryAfterTTL: 1000,
+                maxExecutionTimeTTL: 1000,
+            },
+        };
+
+        (mockedDriver.findPendingEvents as ReturnType<typeof vi.fn>).mockResolvedValue([fullyDeliveredEvent]);
+        (mockedEventConfigurationResolver.resolve as ReturnType<typeof vi.fn>).mockReturnValue(eventConfig);
+        (mockedTransactionalEventEmitter.getListeners as ReturnType<typeof vi.fn>).mockReturnValue([listener]);
+
+        const result = await flusher.processAllPendingEvents();
+
+        expect(mockedOutboxEventProcessor.process).not.toHaveBeenCalled();
+        expect(result).toEqual({ processedCount: 0, failedCount: 0 });
     });
 
     it('should use custom limit when provided', async () => {
