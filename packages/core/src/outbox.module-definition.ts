@@ -31,10 +31,10 @@ export const { ConfigurableModuleClass, MODULE_OPTIONS_TOKEN, ASYNC_OPTIONS_TYPE
     {
       isGlobal: true,
       /**
-       * Whether to enable the built-in LoggerMiddleware.
+       * Whether to enable default middlewares (LoggerMiddleware).
        * @default true
        */
-      enableLoggerMiddleware: true,
+      enableDefaultMiddlewares: true,
       /**
        * Middleware classes for event processing hooks.
        * Classes are registered as providers and instantiated via NestJS DI.

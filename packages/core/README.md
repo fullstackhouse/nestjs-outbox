@@ -177,7 +177,7 @@ export class AppModule {}
 | `retryEveryMilliseconds` | Polling interval for retry mechanism |
 | `maxOutboxTransportEventPerRetry` | Batch size per polling cycle |
 | `isGlobal` | Register module globally (optional) |
-| `enableLoggerMiddleware` | Enable built-in logging middleware (default: `true`) |
+| `enableDefaultMiddlewares` | Enable default middlewares like LoggerMiddleware (default: `true`) |
 | `middlewares` | Array of custom middleware classes |
 
 ## Emit Methods
@@ -259,7 +259,7 @@ To disable the built-in logger:
 
 ```typescript
 OutboxModule.registerAsync({
-  enableLoggerMiddleware: false,
+  enableDefaultMiddlewares: false,
   // ... other options
 })
 ```
