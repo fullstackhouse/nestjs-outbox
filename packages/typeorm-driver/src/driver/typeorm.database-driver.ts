@@ -1,5 +1,5 @@
 import { DatabaseDriver, EventConfigurationResolverContract, OutboxTransportEvent, defaultRetryStrategy } from '@fullstackhouse/nestjs-outbox';
-import { DataSource } from 'typeorm';
+import { DataSource, LessThanOrEqual } from 'typeorm';
 import { TypeOrmOutboxTransportEvent } from '../model/typeorm-outbox-transport-event.model';
 
 const DEFAULT_MAX_RETRIES = 10;
@@ -18,15 +18,14 @@ export class TypeORMDatabaseDriver implements DatabaseDriver {
 
     await this.dataSource.transaction(async (transactionalEntityManager) => {
       const now = new Date();
-      events = await transactionalEntityManager
-        .getRepository(TypeOrmOutboxTransportEvent)
-        .createQueryBuilder('event')
-        .setLock('pessimistic_write')
-        .setOnLocked('skip_locked')
-        .where('event.attemptAt <= :now', { now: now.getTime() })
-        .andWhere('event.status = :status', { status: 'pending' })
-        .take(limit)
-        .getMany();
+      events = await transactionalEntityManager.find(TypeOrmOutboxTransportEvent, {
+        where: {
+          attemptAt: LessThanOrEqual(now.getTime()),
+          status: 'pending',
+        },
+        take: limit,
+        lock: { mode: 'pessimistic_partial_write' },
+      });
 
       events.forEach(event => {
         const eventConfig = this.eventConfigurationResolver.resolve(event.eventName);

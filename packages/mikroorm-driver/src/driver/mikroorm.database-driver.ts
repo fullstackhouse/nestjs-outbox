@@ -1,4 +1,4 @@
-import { EntityManager } from '@mikro-orm/core';
+import { EntityManager, LockMode } from '@mikro-orm/core';
 import { DatabaseDriver, EventConfigurationResolverContract, OutboxTransportEvent, defaultRetryStrategy } from '@fullstackhouse/nestjs-outbox';
 import { MikroOrmOutboxTransportEvent } from '../model/mikroorm-outbox-transport-event.model';
 
@@ -24,18 +24,12 @@ export class MikroORMDatabaseDriver implements DatabaseDriver {
 
     await this.em.transactional(async em => {
       const now = new Date();
-      const connection = em.getConnection();
-      const rows = await connection.execute<Record<string, unknown>[]>(`
-        SELECT * FROM outbox_transport_event
-        WHERE attempt_at <= ? AND status = 'pending'
-        LIMIT ?
-        FOR UPDATE SKIP LOCKED
-      `, [now.getTime(), limit]);
-
-      events = rows.map(row => {
-        const entity = em.map(MikroOrmOutboxTransportEvent, row);
-        em.getUnitOfWork().merge(entity);
-        return entity;
+      events = await em.find(MikroOrmOutboxTransportEvent, {
+        attemptAt: { $lte: now.getTime() },
+        status: 'pending',
+      }, {
+        limit,
+        lockMode: LockMode.PESSIMISTIC_PARTIAL_WRITE,
       });
 
       events.forEach(event => {
