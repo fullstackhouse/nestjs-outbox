@@ -1,6 +1,5 @@
 import { ConfigurableModuleBuilder, Type } from '@nestjs/common';
 import { DatabaseDriverFactory } from './driver/database-driver.factory';
-import { MetricsCollector } from './metrics/metrics-collector.interface';
 import { OutboxMiddleware } from './middleware/outbox-middleware.interface';
 
 export type RetryStrategy = (retryCount: number) => number;
@@ -38,18 +37,6 @@ export const { ConfigurableModuleClass, MODULE_OPTIONS_TOKEN, ASYNC_OPTIONS_TYPE
        * @default true
        */
       enableDefaultMiddlewares: true,
-      /**
-       * Whether to enable built-in metrics collection.
-       * When enabled, a DefaultMetricsCollector is registered and MetricsMiddleware is added.
-       * @default false
-       */
-      enableMetrics: false,
-      /**
-       * Custom metrics collector instance.
-       * Only used when enableMetrics is true.
-       * If not provided, DefaultMetricsCollector is used.
-       */
-      metricsCollector: undefined as MetricsCollector | undefined,
       /**
        * Middleware classes for event processing hooks.
        * Classes are registered as providers and instantiated via NestJS DI.

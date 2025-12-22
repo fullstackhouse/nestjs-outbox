@@ -1,4 +1,9 @@
 export {
+  MetricsOutboxMiddleware,
+  MetricsOutboxOptions,
+  METRICS_OUTBOX_OPTIONS,
+} from './metrics.outbox-middleware';
+export {
   TracingOutboxMiddleware,
   TRACING_OUTBOX_OPTIONS,
 } from './tracing.outbox-middleware';
