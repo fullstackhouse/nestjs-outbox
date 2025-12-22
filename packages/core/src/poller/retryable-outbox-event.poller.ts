@@ -1,5 +1,5 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit, Optional } from '@nestjs/common';
-import { EMPTY, Subscription, catchError, concatMap, from, interval, merge, repeat } from 'rxjs';
+import { EMPTY, Subscription, asyncScheduler, catchError, concatMap, from, interval, merge, repeat, throttleTime } from 'rxjs';
 import { DATABASE_DRIVER_FACTORY_TOKEN, DatabaseDriverFactory } from '../driver/database-driver.factory';
 import { TransactionalEventEmitter } from '../emitter/transactional-event-emitter';
 import { OutboxModuleOptions, MODULE_OPTIONS_TOKEN } from '../outbox.module-definition';
@@ -39,9 +39,11 @@ export class RetryableOutboxEventPoller implements OnModuleInit, OnModuleDestroy
     }
 
     const pollingSource$ = interval(this.options.pollingInterval);
-    const eventSource$ = this.eventListener?.events$ ?? EMPTY;
+    const throttledEventSource$ = (this.eventListener?.events$ ?? EMPTY).pipe(
+      throttleTime(100, asyncScheduler, { leading: true, trailing: true }),
+    );
 
-    this.subscription = merge(pollingSource$, eventSource$)
+    this.subscription = merge(pollingSource$, throttledEventSource$)
       .pipe(
         concatMap(() => {
           if (this.isShuttingDown) {
