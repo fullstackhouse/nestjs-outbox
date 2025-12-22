@@ -1,5 +1,5 @@
 import { EntityManager, LockMode } from '@mikro-orm/core';
-import { DatabaseDriver, EventConfigurationResolverContract, OutboxTransportEvent, defaultRetryStrategy } from '@fullstackhouse/nestjs-outbox';
+import { DatabaseDriver, EventConfigurationResolverContract, FindAndExtendResult, OutboxTransportEvent, defaultRetryStrategy } from '@fullstackhouse/nestjs-outbox';
 import { MikroOrmOutboxTransportEvent } from '../model/mikroorm-outbox-transport-event.model';
 
 export interface MikroORMDatabaseDriverOptions {
@@ -19,7 +19,7 @@ export class MikroORMDatabaseDriver implements DatabaseDriver {
     this.clearAfterFlush = options?.clearAfterFlush ?? true;
   }
 
-  async findAndExtendReadyToRetryEvents(limit: number): Promise<OutboxTransportEvent[]> {
+  async findAndExtendReadyToRetryEvents(limit: number): Promise<FindAndExtendResult> {
     let events: MikroOrmOutboxTransportEvent[] = [];
 
     await this.em.transactional(async em => {
@@ -51,7 +51,10 @@ export class MikroORMDatabaseDriver implements DatabaseDriver {
       await em.flush();
     });
 
-    return events.filter(e => e.status === 'pending');
+    return {
+      pendingEvents: events.filter(e => e.status === 'pending'),
+      deadLetteredEvents: events.filter(e => e.status === 'failed'),
+    };
   }
 
   async persist<T extends object>(entity: T): Promise<void> {

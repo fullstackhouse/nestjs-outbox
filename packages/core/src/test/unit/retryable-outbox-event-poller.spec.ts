@@ -10,6 +10,7 @@ import { EventConfigurationResolver } from '../../resolver/event-configuration.r
 import { createMockedDriverFactory } from './mock/driver-factory.mock';
 import { createMockedDriver } from './mock/driver.mock';
 import { createMockedOutboxOptionsFactory } from './mock/outbox-options.mock';
+import { DeadLetterContext, OutboxMiddleware } from '../../middleware/outbox-middleware.interface';
 
 describe('RetryableOutboxEventPoller', () => {
   let mockedDriver: DatabaseDriver;
@@ -79,7 +80,7 @@ describe('RetryableOutboxEventPoller', () => {
     });
 
     it('should stop polling after shutdown is initiated', async () => {
-      (mockedDriver.findAndExtendReadyToRetryEvents as Mock).mockResolvedValue([]);
+      (mockedDriver.findAndExtendReadyToRetryEvents as Mock).mockResolvedValue({ pendingEvents: [], deadLetteredEvents: [] });
       const poller = createPoller();
       await poller.onModuleInit();
 
@@ -116,7 +117,7 @@ describe('RetryableOutboxEventPoller', () => {
         retryCount: 0,
         status: 'pending' as const,
       };
-      (mockedDriver.findAndExtendReadyToRetryEvents as Mock).mockResolvedValue([mockEvent]);
+      (mockedDriver.findAndExtendReadyToRetryEvents as Mock).mockResolvedValue({ pendingEvents: [mockEvent], deadLetteredEvents: [] });
 
       const poller = createPoller();
       await poller.onModuleInit();
@@ -146,7 +147,7 @@ describe('RetryableOutboxEventPoller', () => {
     });
 
     it('should handle shutdown when no in-flight processing exists', async () => {
-      (mockedDriver.findAndExtendReadyToRetryEvents as Mock).mockResolvedValue([]);
+      (mockedDriver.findAndExtendReadyToRetryEvents as Mock).mockResolvedValue({ pendingEvents: [], deadLetteredEvents: [] });
       const poller = createPoller();
       await poller.onModuleInit();
 
@@ -164,6 +165,162 @@ describe('RetryableOutboxEventPoller', () => {
 
       expect(mockLogger.log).toHaveBeenCalledWith('Shutting down RetryableOutboxEventPoller...');
       expect(mockLogger.log).toHaveBeenCalledWith('RetryableOutboxEventPoller shutdown complete.');
+    });
+  });
+
+  describe('dead letter queue handling', () => {
+    it('should invoke dlqHandler when event moves to DLQ', async () => {
+      const dlqHandler = vi.fn();
+      outboxOptions = createMockedOutboxOptionsFactory(mockedDriverFactory, [
+        {
+          name: 'testEvent',
+          listeners: {
+            retentionPeriod: 1000,
+            maxRetries: 5,
+            maxExecutionTime: 1000,
+            dlqHandler,
+          },
+        },
+      ]);
+
+      const deadLetteredEvent = {
+        id: 1,
+        eventName: 'testEvent',
+        eventPayload: { test: 'data' },
+        deliveredToListeners: ['listener1'],
+        attemptAt: null,
+        expireAt: Date.now() + 1000,
+        insertedAt: Date.now(),
+        retryCount: 5,
+        status: 'failed' as const,
+      };
+
+      (mockedDriver.findAndExtendReadyToRetryEvents as Mock).mockResolvedValue({
+        pendingEvents: [],
+        deadLetteredEvents: [deadLetteredEvent],
+      });
+
+      const poller = new RetryableOutboxEventPoller(
+        outboxOptions,
+        mockedDriverFactory,
+        mockOutboxEventProcessor,
+        mockTransactionalEventEmitter,
+        mockEventConfigurationResolver,
+        mockLogger,
+      );
+      await poller.onModuleInit();
+
+      vi.advanceTimersByTime(outboxOptions.pollingInterval);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(dlqHandler).toHaveBeenCalledWith({
+        eventName: 'testEvent',
+        eventPayload: { test: 'data' },
+        eventId: 1,
+        retryCount: 5,
+        deliveredToListeners: ['listener1'],
+      });
+
+      await poller.onModuleDestroy();
+    });
+
+    it('should invoke middleware onDeadLetter when event moves to DLQ', async () => {
+      const onDeadLetter = vi.fn();
+      const middlewares: OutboxMiddleware[] = [{ onDeadLetter }];
+
+      const deadLetteredEvent = {
+        id: 2,
+        eventName: 'testEvent',
+        eventPayload: { foo: 'bar' },
+        deliveredToListeners: [],
+        attemptAt: null,
+        expireAt: Date.now() + 1000,
+        insertedAt: Date.now(),
+        retryCount: 5,
+        status: 'failed' as const,
+      };
+
+      (mockedDriver.findAndExtendReadyToRetryEvents as Mock).mockResolvedValue({
+        pendingEvents: [],
+        deadLetteredEvents: [deadLetteredEvent],
+      });
+
+      const poller = new RetryableOutboxEventPoller(
+        outboxOptions,
+        mockedDriverFactory,
+        mockOutboxEventProcessor,
+        mockTransactionalEventEmitter,
+        mockEventConfigurationResolver,
+        mockLogger,
+        undefined,
+        middlewares,
+      );
+      await poller.onModuleInit();
+
+      vi.advanceTimersByTime(outboxOptions.pollingInterval);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(onDeadLetter).toHaveBeenCalledWith({
+        eventName: 'testEvent',
+        eventPayload: { foo: 'bar' },
+        eventId: 2,
+        retryCount: 5,
+        deliveredToListeners: [],
+      });
+
+      await poller.onModuleDestroy();
+    });
+
+    it('should log error if DLQ handler throws', async () => {
+      const dlqHandler = vi.fn().mockRejectedValue(new Error('DLQ handler error'));
+      outboxOptions = createMockedOutboxOptionsFactory(mockedDriverFactory, [
+        {
+          name: 'testEvent',
+          listeners: {
+            retentionPeriod: 1000,
+            maxRetries: 5,
+            maxExecutionTime: 1000,
+            dlqHandler,
+          },
+        },
+      ]);
+
+      const deadLetteredEvent = {
+        id: 1,
+        eventName: 'testEvent',
+        eventPayload: {},
+        deliveredToListeners: [],
+        attemptAt: null,
+        expireAt: Date.now() + 1000,
+        insertedAt: Date.now(),
+        retryCount: 5,
+        status: 'failed' as const,
+      };
+
+      (mockedDriver.findAndExtendReadyToRetryEvents as Mock).mockResolvedValue({
+        pendingEvents: [],
+        deadLetteredEvents: [deadLetteredEvent],
+      });
+
+      const poller = new RetryableOutboxEventPoller(
+        outboxOptions,
+        mockedDriverFactory,
+        mockOutboxEventProcessor,
+        mockTransactionalEventEmitter,
+        mockEventConfigurationResolver,
+        mockLogger,
+      );
+      await poller.onModuleInit();
+
+      vi.advanceTimersByTime(outboxOptions.pollingInterval);
+      await Promise.resolve();
+      await Promise.resolve();
+
+      expect(mockLogger.error).toHaveBeenCalledWith(expect.stringContaining('Error invoking DLQ handler'));
+
+      await poller.onModuleDestroy();
     });
   });
 });

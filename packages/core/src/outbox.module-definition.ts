@@ -1,6 +1,6 @@
 import { ConfigurableModuleBuilder, Type } from '@nestjs/common';
 import { DatabaseDriverFactory } from './driver/database-driver.factory';
-import { OutboxMiddleware } from './middleware/outbox-middleware.interface';
+import { DeadLetterHandler, OutboxMiddleware } from './middleware/outbox-middleware.interface';
 
 export type RetryStrategy = (retryCount: number) => number;
 
@@ -18,6 +18,7 @@ export interface OutboxModuleEventOptions {
     retryStrategy?: RetryStrategy;
     maxRetries?: number;
     maxExecutionTime: number;
+    dlqHandler?: DeadLetterHandler;
   };
 }
 
