@@ -29,7 +29,7 @@ export class MikroORMDatabaseDriver implements DatabaseDriver {
         status: 'pending',
       }, {
         limit,
-        lockMode: LockMode.PESSIMISTIC_WRITE,
+        lockMode: LockMode.PESSIMISTIC_PARTIAL_WRITE,
       });
 
       events.forEach(event => {
