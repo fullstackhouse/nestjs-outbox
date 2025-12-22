@@ -86,7 +86,7 @@ export class OutboxEventProcessor implements OutboxEventProcessorContract {
             listenerName: listener.getName(),
             hasFailed: true,
           });
-        }, eventOptions.listeners.maxExecutionTimeTTL);
+        }, eventOptions.listeners.maxExecutionTime);
 
         await this.wrapExecution(context, async () => {
           await listener.handle(outboxTransportEvent.eventPayload, outboxTransportEvent.eventName);

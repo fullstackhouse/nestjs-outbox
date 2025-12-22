@@ -1,5 +1,5 @@
 import { Entity, PrimaryKey, Property } from '@mikro-orm/core';
-import { OutboxTransportEvent } from '@fullstackhouse/nestjs-outbox';
+import { OutboxTransportEvent, OutboxEventStatus } from '@fullstackhouse/nestjs-outbox';
 
 @Entity({
   tableName: 'outbox_transport_event',
@@ -22,8 +22,14 @@ export class MikroOrmOutboxTransportEvent implements OutboxTransportEvent {
   })
   deliveredToListeners: string[];
 
-  @Property({ type: 'bigint' })
-  readyToRetryAfter: number;
+  @Property({ type: 'bigint', nullable: true })
+  readyToRetryAfter: number | null;
+
+  @Property({ type: 'int', default: 0 })
+  retryCount: number;
+
+  @Property({ type: 'varchar', length: 20, default: 'pending' })
+  status: OutboxEventStatus;
 
   @Property({ type: 'bigint' })
   expireAt: number;
@@ -37,6 +43,8 @@ export class MikroOrmOutboxTransportEvent implements OutboxTransportEvent {
     event.eventPayload = eventPayload;
     event.expireAt = expireAt;
     event.readyToRetryAfter = readyToRetryAfter;
+    event.retryCount = 0;
+    event.status = 'pending';
     event.insertedAt = Date.now();
     event.deliveredToListeners = [];
     return event;

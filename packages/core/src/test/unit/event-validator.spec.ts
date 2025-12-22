@@ -4,24 +4,24 @@ import { OutboxModuleOptions } from '../../outbox.module-definition';
 describe('EventValidator', () => {
   it('should throw an exception when event names are not unique', () => {
     const mockOptions: OutboxModuleOptions = {
-      driverFactory: null,
-      maxOutboxTransportEventPerRetry: 10,
-      retryEveryMilliseconds: 1000,
+      driverFactory: null as any,
+      maxEventsPerPoll: 10,
+      pollingInterval: 1000,
       events: [
         {
           name: 'event1',
           listeners: {
-            expiresAtTTL: 1000,
-            readyToRetryAfterTTL: 1000,
-            maxExecutionTimeTTL: 1000,
+            retentionPeriod: 1000,
+            maxRetries: 5,
+            maxExecutionTime: 1000,
           },
         },
         {
           name: 'event1',
           listeners: {
-            expiresAtTTL: 1000,
-            readyToRetryAfterTTL: 1000,
-            maxExecutionTimeTTL: 1000,
+            retentionPeriod: 1000,
+            maxRetries: 5,
+            maxExecutionTime: 1000,
           },
         },
       ],
@@ -34,24 +34,24 @@ describe('EventValidator', () => {
 
   it('should not throw an exception when event names are unique', () => {
     const mockOptions: OutboxModuleOptions = {
-      driverFactory: null,
-      maxOutboxTransportEventPerRetry: 10,
-      retryEveryMilliseconds: 1000,
+      driverFactory: null as any,
+      maxEventsPerPoll: 10,
+      pollingInterval: 1000,
       events: [
         {
           name: 'event1',
           listeners: {
-            expiresAtTTL: 1000,
-            readyToRetryAfterTTL: 1000,
-            maxExecutionTimeTTL: 1000,
+            retentionPeriod: 1000,
+            maxRetries: 5,
+            maxExecutionTime: 1000,
           },
         },
         {
           name: 'event2',
           listeners: {
-            expiresAtTTL: 1000,
-            readyToRetryAfterTTL: 1000,
-            maxExecutionTimeTTL: 1000,
+            retentionPeriod: 1000,
+            maxRetries: 5,
+            maxExecutionTime: 1000,
           },
         },
       ],

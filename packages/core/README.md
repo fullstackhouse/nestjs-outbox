@@ -143,14 +143,16 @@ import {
           {
             name: OrderCreatedEvent.name,
             listeners: {
-              expiresAtTTL: 1000 * 60 * 60 * 24,   // 24 hours
-              maxExecutionTimeTTL: 1000 * 15,       // 15 seconds
-              readyToRetryAfterTTL: 10000,          // 10 seconds
+              retentionPeriod: 1000 * 60 * 60 * 24, // 24 hours - how long events are retained
+              maxExecutionTime: 1000 * 15,          // 15 seconds - max listener execution time
+              maxRetries: 5,                        // max retry attempts before DLQ
+              retryStrategy: (retryCount) =>        // optional: custom exponential backoff
+                Math.min(1000 * Math.pow(2, retryCount), 60_000),
             },
           },
         ],
-        retryEveryMilliseconds: 30_000,
-        maxOutboxTransportEventPerRetry: 10,
+        pollingInterval: 30_000,                    // 30 seconds - polling frequency
+        maxEventsPerPoll: 10,                       // batch size per poll
       }),
       inject: [DataSource],
     }),
@@ -166,9 +168,10 @@ export class AppModule {}
 | Option | Description |
 |--------|-------------|
 | `name` | Event class name |
-| `listeners.expiresAtTTL` | How long events are retained and retried (ms) |
-| `listeners.maxExecutionTimeTTL` | Max listener execution time before retry (ms) |
-| `listeners.readyToRetryAfterTTL` | Delay before retrying failed events (ms) |
+| `listeners.retentionPeriod` | How long events are retained before expiring (ms) |
+| `listeners.maxExecutionTime` | Max listener execution time before timeout (ms) |
+| `listeners.maxRetries` | Max retry attempts before moving to DLQ (default: 5) |
+| `listeners.retryStrategy` | Optional function `(retryCount) => delayMs` for custom backoff. Default: exponential backoff with 1s base, 60s max |
 
 ### Module Options
 
@@ -176,8 +179,8 @@ export class AppModule {}
 |--------|-------------|
 | `driverFactory` | Database driver factory instance |
 | `events` | Array of event configurations |
-| `retryEveryMilliseconds` | Polling interval for retry mechanism |
-| `maxOutboxTransportEventPerRetry` | Batch size per polling cycle |
+| `pollingInterval` | How often to poll for pending events (ms) |
+| `maxEventsPerPoll` | Batch size per polling cycle |
 | `isGlobal` | Register module globally (optional) |
 | `enableDefaultMiddlewares` | Enable default middlewares like LoggerMiddleware (default: `true`) |
 | `middlewares` | Array of custom middleware classes |
@@ -214,8 +217,8 @@ import { MikroORMDatabaseDriverFactory } from '@fullstackhouse/nestjs-outbox-mik
       useFactory: (orm: MikroORM) => ({
         driverFactory: new MikroORMDatabaseDriverFactory(orm),
         events: [/* ... */],
-        retryEveryMilliseconds: 30_000,
-        maxOutboxTransportEventPerRetry: 10,
+        pollingInterval: 30_000,
+        maxEventsPerPoll: 10,
       }),
       inject: [MikroORM],
     }),
@@ -333,8 +336,8 @@ import { MikroORMDatabaseDriverFactory } from '@fullstackhouse/nestjs-outbox-mik
       useFactory: (orm: MikroORM) => ({
         driverFactory: new MikroORMDatabaseDriverFactory(orm),
         events: [/* ... */],
-        retryEveryMilliseconds: 30_000,
-        maxOutboxTransportEventPerRetry: 10,
+        pollingInterval: 30_000,
+        maxEventsPerPoll: 10,
       }),
       inject: [MikroORM],
       middlewares: [LoggingMiddleware, SentryMiddleware],

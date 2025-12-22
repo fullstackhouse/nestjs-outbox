@@ -25,7 +25,7 @@ export class RetryableOutboxEventPoller implements OnModuleInit, OnModuleDestroy
   ) {}
 
   async onModuleInit() {
-    this.logger.log(`Poller options: retryEveryMilliseconds: ${this.options.retryEveryMilliseconds}, maxOutboxTransportEventPerRetry: ${this.options.maxOutboxTransportEventPerRetry}, events: ${JSON.stringify(this.options.events)}, driver: ${this.options.driverFactory.constructor.name}`);
+    this.logger.log(`Poller options: pollingInterval: ${this.options.pollingInterval}, maxEventsPerPoll: ${this.options.maxEventsPerPoll}, events: ${JSON.stringify(this.options.events)}, driver: ${this.options.driverFactory.constructor.name}`);
 
     if (this.eventListener) {
       try {
@@ -36,7 +36,7 @@ export class RetryableOutboxEventPoller implements OnModuleInit, OnModuleDestroy
       }
     }
 
-    const pollingSource$ = interval(this.options.retryEveryMilliseconds);
+    const pollingSource$ = interval(this.options.pollingInterval);
     const eventSource$ = this.eventListener?.events$ ?? EMPTY;
 
     this.subscription = merge(pollingSource$, eventSource$)
@@ -84,10 +84,10 @@ export class RetryableOutboxEventPoller implements OnModuleInit, OnModuleDestroy
 
   async poolRetryableEvents() {
     try {
-      const maxOutboxTransportEventPerRetry = this.options.maxOutboxTransportEventPerRetry;
+      const maxEventsPerPoll = this.options.maxEventsPerPoll;
       const databaseDriver = this.databaseDriverFactory.create(this.eventConfigurationResolver);
 
-      const readyToRetryEvents = await databaseDriver.findAndExtendReadyToRetryEvents(maxOutboxTransportEventPerRetry);
+      const readyToRetryEvents = await databaseDriver.findAndExtendReadyToRetryEvents(maxEventsPerPoll);
 
       if (readyToRetryEvents.length === 0) {
         return;

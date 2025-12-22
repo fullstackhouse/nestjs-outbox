@@ -70,14 +70,14 @@ const migrationList = OutboxMigrations.map(mapMigration);
           {
             name: 'OrderCreatedEvent',
             listeners: {
-              expiresAtTTL: 1000 * 60 * 60 * 24,     // 24 hours
-              maxExecutionTimeTTL: 1000 * 15,        // 15 seconds
-              readyToRetryAfterTTL: 10000,           // 10 seconds
+              retentionPeriod: 1000 * 60 * 60 * 24, // 24 hours
+              maxExecutionTime: 1000 * 15,          // 15 seconds
+              maxRetries: 5,                        // max retry attempts
             },
           },
         ],
-        retryEveryMilliseconds: 30_000,
-        maxOutboxTransportEventPerRetry: 10,
+        pollingInterval: 30_000,
+        maxEventsPerPoll: 10,
       }),
       inject: [MikroORM],
     }),
@@ -137,8 +137,8 @@ OutboxModule.registerAsync({
       useContext: true, // Enable context propagation
     }),
     events: [...],
-    retryEveryMilliseconds: 30_000,
-    maxOutboxTransportEventPerRetry: 10,
+    pollingInterval: 30_000,
+    maxEventsPerPoll: 10,
   }),
   inject: [MikroORM],
 }),

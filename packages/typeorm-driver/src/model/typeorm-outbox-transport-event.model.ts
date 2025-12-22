@@ -1,12 +1,12 @@
-import { OutboxTransportEvent } from '@fullstackhouse/nestjs-outbox';
-import { Column, Entity, PrimaryGeneratedColumn } from 'typeorm';
+import { OutboxTransportEvent, OutboxEventStatus } from '@fullstackhouse/nestjs-outbox';
+import { Column, Entity, Index, PrimaryGeneratedColumn } from 'typeorm';
 
 @Entity({
   name: 'outbox_transport_event',
 })
 export class TypeOrmOutboxTransportEvent implements OutboxTransportEvent {
   @PrimaryGeneratedColumn()
-  id: number; 
+  id: number;
 
   @Column({
     name: 'event_name',
@@ -30,7 +30,23 @@ export class TypeOrmOutboxTransportEvent implements OutboxTransportEvent {
     type: 'bigint',
     nullable: true,
   })
-  readyToRetryAfter: number;
+  readyToRetryAfter: number | null;
+
+  @Column({
+    name: 'retry_count',
+    type: 'int',
+    default: 0,
+  })
+  retryCount: number;
+
+  @Index()
+  @Column({
+    name: 'status',
+    type: 'varchar',
+    length: 20,
+    default: 'pending',
+  })
+  status: OutboxEventStatus;
 
   @Column({
     name: 'expire_at',
@@ -50,6 +66,8 @@ export class TypeOrmOutboxTransportEvent implements OutboxTransportEvent {
     event.eventPayload = eventPayload;
     event.expireAt = expireAt;
     event.readyToRetryAfter = readyToRetryAfter;
+    event.retryCount = 0;
+    event.status = 'pending';
     event.insertedAt = Date.now();
     event.deliveredToListeners = [];
     return event;

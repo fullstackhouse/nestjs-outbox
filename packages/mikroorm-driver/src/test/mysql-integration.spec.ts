@@ -49,17 +49,17 @@ describe('MySQL Integration Tests', () => {
     {
       name: 'UserCreated',
       listeners: {
-        expiresAtTTL: 60000,
-        readyToRetryAfterTTL: 5000,
-        maxExecutionTimeTTL: 30000,
+        retentionPeriod: 60000,
+        maxRetries: 5,
+        maxExecutionTime: 30000,
       },
     },
     {
       name: 'UserDeleted',
       listeners: {
-        expiresAtTTL: 60000,
-        readyToRetryAfterTTL: 5000,
-        maxExecutionTimeTTL: 30000,
+        retentionPeriod: 60000,
+        maxRetries: 5,
+        maxExecutionTime: 30000,
       },
     },
   ];
@@ -334,9 +334,9 @@ describe('MySQL Integration Tests', () => {
           {
             name: 'ConfiguredEvent',
             listeners: {
-              expiresAtTTL: 60000,
-              readyToRetryAfterTTL: 5000,
-              maxExecutionTimeTTL: 30000,
+              retentionPeriod: 60000,
+              maxRetries: 5,
+              maxExecutionTime: 30000,
             },
           },
         ],
@@ -361,15 +361,15 @@ describe('MySQL Integration Tests', () => {
           {
             name: 'UserCreated',
             listeners: {
-              expiresAtTTL: 60000,
-              readyToRetryAfterTTL: 100,
-              maxExecutionTimeTTL: 30000,
+              retentionPeriod: 60000,
+              maxRetries: 5,
+              maxExecutionTime: 30000,
             },
           },
         ],
         additionalEntities: [User],
-        retryEveryMilliseconds: 5000,
-        maxOutboxTransportEventPerRetry: 10,
+        pollingInterval: 5000,
+        maxEventsPerPoll: 10,
         databaseType: 'mysql',
       });
     });

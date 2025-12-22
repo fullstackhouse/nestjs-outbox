@@ -85,25 +85,25 @@ describe('@OnEvent Integration Tests', () => {
     {
       name: 'UserCreated',
       listeners: {
-        expiresAtTTL: 60000,
-        readyToRetryAfterTTL: 5000,
-        maxExecutionTimeTTL: 30000,
+        retentionPeriod: 60000,
+        maxRetries: 5,
+        maxExecutionTime: 30000,
       },
     },
     {
       name: 'UserDeleted',
       listeners: {
-        expiresAtTTL: 60000,
-        readyToRetryAfterTTL: 5000,
-        maxExecutionTimeTTL: 30000,
+        retentionPeriod: 60000,
+        maxRetries: 5,
+        maxExecutionTime: 30000,
       },
     },
     {
       name: 'UserUpdated',
       listeners: {
-        expiresAtTTL: 60000,
-        readyToRetryAfterTTL: 5000,
-        maxExecutionTimeTTL: 30000,
+        retentionPeriod: 60000,
+        maxRetries: 5,
+        maxExecutionTime: 30000,
       },
     },
   ];

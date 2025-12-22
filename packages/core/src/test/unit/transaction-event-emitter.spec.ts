@@ -30,9 +30,9 @@ describe('TransacationalEventEmitter', () => {
       {
         name: 'newEvent',
         listeners: {
-          expiresAtTTL: 1000,
-          readyToRetryAfterTTL: 1000,
-          maxExecutionTimeTTL: 1000,
+          retentionPeriod: 1000,
+          maxRetries: 5,
+          maxExecutionTime: 1000,
         },
       },
     ];
@@ -65,9 +65,9 @@ describe('TransacationalEventEmitter', () => {
       {
         name: 'newEvent',
         listeners: {
-          expiresAtTTL: 1000,
-          readyToRetryAfterTTL: 1000,
-          maxExecutionTimeTTL: 1000,
+          retentionPeriod: 1000,
+          maxRetries: 5,
+          maxExecutionTime: 1000,
         },
       },
     ];
@@ -100,9 +100,9 @@ describe('TransacationalEventEmitter', () => {
       {
         name: 'newEvent',
         listeners: {
-          expiresAtTTL: 1000,
-          readyToRetryAfterTTL: 1000,
-          maxExecutionTimeTTL: 1000,
+          retentionPeriod: 1000,
+          maxRetries: 5,
+          maxExecutionTime: 1000,
         },
       },
     ];
@@ -138,9 +138,9 @@ describe('TransacationalEventEmitter', () => {
       {
         name: 'newEvent',
         listeners: {
-          expiresAtTTL: 1000,
-          readyToRetryAfterTTL: 1000,
-          maxExecutionTimeTTL: 1000,
+          retentionPeriod: 1000,
+          maxRetries: 5,
+          maxExecutionTime: 1000,
         },
       },
     ];
@@ -245,9 +245,9 @@ describe('TransacationalEventEmitter', () => {
         {
           name: 'newEvent',
           listeners: {
-            expiresAtTTL: 1000,
-            readyToRetryAfterTTL: 1000,
-            maxExecutionTimeTTL: 1000,
+            retentionPeriod: 1000,
+            maxRetries: 5,
+            maxExecutionTime: 1000,
           },
         },
       ];
@@ -283,9 +283,9 @@ describe('TransacationalEventEmitter', () => {
         {
           name: 'newEvent',
           listeners: {
-            expiresAtTTL: 1000,
-            readyToRetryAfterTTL: 1000,
-            maxExecutionTimeTTL: 1000,
+            retentionPeriod: 1000,
+            maxRetries: 5,
+            maxExecutionTime: 1000,
           },
         },
       ];
@@ -329,9 +329,9 @@ describe('TransacationalEventEmitter', () => {
         {
           name: 'newEvent',
           listeners: {
-            expiresAtTTL: 1000,
-            readyToRetryAfterTTL: 1000,
-            maxExecutionTimeTTL: 1000,
+            retentionPeriod: 1000,
+            maxRetries: 5,
+            maxExecutionTime: 1000,
           },
         },
       ];
@@ -367,9 +367,9 @@ describe('TransacationalEventEmitter', () => {
         {
           name: 'newEvent',
           listeners: {
-            expiresAtTTL: 1000,
-            readyToRetryAfterTTL: 1000,
-            maxExecutionTimeTTL: 1000,
+            retentionPeriod: 1000,
+            maxRetries: 5,
+            maxExecutionTime: 1000,
           },
         },
       ];
@@ -396,9 +396,9 @@ describe('TransacationalEventEmitter', () => {
         {
           name: 'newEvent',
           listeners: {
-            expiresAtTTL: 1000,
-            readyToRetryAfterTTL: 1000,
-            maxExecutionTimeTTL: 1000,
+            retentionPeriod: 1000,
+            maxRetries: 5,
+            maxExecutionTime: 1000,
           },
         },
       ];
