@@ -5,6 +5,7 @@ export { TransactionalEventEmitter, TransactionalEventEmitterOperations } from "
 export * from "./filter/outbox-arguments-host";
 export * from "./filter/outbox-exception-filter.interface";
 export * from "./flusher/outbox-event-flusher";
+export * from "./metrics";
 export * from "./middleware/logger.middleware";
 export * from "./middleware/outbox-middleware.interface";
 export * from "./outbox.module";

@@ -6,6 +6,9 @@ import { EventValidator } from './event-validator/event.validator';
 import { OutboxEventFlusher } from './flusher/outbox-event-flusher';
 import { ASYNC_OPTIONS_TYPE, ConfigurableModuleClass, OutboxModuleOptions, MODULE_OPTIONS_TOKEN } from './outbox.module-definition';
 import { ListenerDiscovery } from './listener/discovery/listener.discovery';
+import { DefaultMetricsCollector } from './metrics/default-metrics-collector';
+import { METRICS_COLLECTOR_TOKEN } from './metrics/metrics-collector.interface';
+import { MetricsMiddleware } from './metrics/metrics.middleware';
 import { LoggerMiddleware } from './middleware/logger.middleware';
 import { OutboxMiddleware, OUTBOX_MIDDLEWARES_TOKEN } from './middleware/outbox-middleware.interface';
 import { EVENT_LISTENER_TOKEN } from './poller/event-listener.interface';
@@ -45,8 +48,25 @@ export class OutboxModule extends ConfigurableModuleClass {
   static registerAsync(options: typeof ASYNC_OPTIONS_TYPE): DynamicModule {
     const registered = super.registerAsync(options);
     const enableDefaultMiddlewares = options.enableDefaultMiddlewares ?? true;
+    const enableMetrics = options.enableMetrics ?? false;
     const defaultMiddlewares = enableDefaultMiddlewares ? DEFAULT_MIDDLEWARES : [];
-    const middlewares = [...defaultMiddlewares, ...(options.middlewares ?? [])];
+    const metricsMiddlewares = enableMetrics ? [MetricsMiddleware] : [];
+    const middlewares = [...defaultMiddlewares, ...metricsMiddlewares, ...(options.middlewares ?? [])];
+
+    const metricsProviders: Provider[] = enableMetrics
+      ? [
+          {
+            provide: METRICS_COLLECTOR_TOKEN,
+            useValue: options.metricsCollector ?? new DefaultMetricsCollector(),
+          } as Provider,
+          MetricsMiddleware,
+        ]
+      : [];
+
+    const exports = [TransactionalEventEmitter, OutboxEventFlusher];
+    if (enableMetrics) {
+      exports.push(METRICS_COLLECTOR_TOKEN as any);
+    }
 
     return {
       ...registered,
@@ -54,7 +74,9 @@ export class OutboxModule extends ConfigurableModuleClass {
       imports: [...registered.imports],
       providers: [
         ...registered.providers,
-        ...middlewares,
+        ...metricsProviders,
+        ...defaultMiddlewares,
+        ...(options.middlewares ?? []),
         {
           provide: DATABASE_DRIVER_FACTORY_TOKEN,
           useFactory: async (moduleOptions: OutboxModuleOptions) => {
@@ -75,7 +97,7 @@ export class OutboxModule extends ConfigurableModuleClass {
           inject: middlewares,
         } as Provider<any>,
       ],
-      exports: [TransactionalEventEmitter, OutboxEventFlusher],
+      exports,
     };
   }
 }
