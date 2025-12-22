@@ -47,7 +47,7 @@ class OrderService {
     order.total = total;
     this.em.persist(order);
 
-    await this.emitter.emitAsync(new OrderCreatedEvent(order.id, customerEmail));
+    await this.emitter.emit(new OrderCreatedEvent(order.id, customerEmail));
 
     return order;
   }
@@ -59,7 +59,7 @@ class OrderService {
     order.total = total;
     this.em.persist(order);
 
-    await this.emitter.emitAsync(new OrderCreatedEvent(order.id, customerEmail));
+    await this.emitter.emit(new OrderCreatedEvent(order.id, customerEmail));
 
     throw new Error('Intentional rollback');
   }
@@ -114,8 +114,10 @@ describe('@Transactional() decorator integration', () => {
 
       await em.transactional(async () => {
         em.persist(order);
-        await emitter.emitAsync(new OrderCreatedEvent(order.id, order.customerEmail));
+        await emitter.emit(new OrderCreatedEvent(order.id, order.customerEmail));
       });
+
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       const checkEm = orm.em.fork();
       const orders = await checkEm.find(Order, {});
@@ -148,7 +150,7 @@ describe('@Transactional() decorator integration', () => {
           order.total = 200;
           em.persist(order);
 
-          await emitter.emitAsync(new OrderCreatedEvent(order.id, order.customerEmail));
+          await emitter.emit(new OrderCreatedEvent(order.id, order.customerEmail));
 
           throw new Error('Intentional rollback');
         }),
@@ -189,11 +191,13 @@ describe('@Transactional() decorator integration', () => {
           order2.total = 200;
           em.persist(order2);
 
-          await emitter.emitAsync(new OrderCreatedEvent(order2.id, order2.customerEmail));
+          await emitter.emit(new OrderCreatedEvent(order2.id, order2.customerEmail));
         });
 
-        await emitter.emitAsync(new OrderCreatedEvent(order1.id, order1.customerEmail));
+        await emitter.emit(new OrderCreatedEvent(order1.id, order1.customerEmail));
       });
+
+      await new Promise((resolve) => setTimeout(resolve, 200));
 
       const checkEm = orm.em.fork();
       const orders = await checkEm.find(Order, {});
@@ -222,7 +226,7 @@ describe('@Transactional() decorator integration', () => {
         em.persist(order);
         orderRef = order;
 
-        await emitter.emitAsync(new OrderCreatedEvent(order.id, order.customerEmail));
+        await emitter.emit(new OrderCreatedEvent(order.id, order.customerEmail));
 
         const found = await em.findOne(Order, { customerEmail: 'identity@example.com' });
         expect(found).toBe(order);
@@ -241,13 +245,16 @@ describe('@Transactional() decorator integration', () => {
       });
     });
 
-    it('should rollback event when user transaction rolls back (default fork behavior)', async () => {
+    it('should persist event independently when user transaction rolls back (separate fork)', async () => {
       const emitter = context.module.get(TransactionalEventEmitter);
       const orm = context.orm;
 
+      const handledEvents: OrderCreatedEvent[] = [];
       const listener: IListener<OrderCreatedEvent> = {
         getName: () => 'IsolatedListener',
-        handle: async () => {},
+        handle: async (event: OrderCreatedEvent) => {
+          handledEvents.push(event);
+        },
       };
       emitter.addListener('OrderCreated', listener);
 
@@ -260,18 +267,19 @@ describe('@Transactional() decorator integration', () => {
           order.total = 400;
           em.persist(order);
 
-          await emitter.emitAsync(new OrderCreatedEvent(order.id, order.customerEmail));
+          await emitter.emit(new OrderCreatedEvent(order.id, order.customerEmail));
 
           throw new Error('Intentional rollback');
         }),
       ).rejects.toThrow('Intentional rollback');
 
+      await new Promise((resolve) => setTimeout(resolve, 200));
+
       const checkEm = orm.em.fork();
       const orders = await checkEm.find(Order, { customerEmail: 'isolated@example.com' });
       expect(orders).toHaveLength(0);
 
-      const transportEvents = await checkEm.find(MikroOrmOutboxTransportEvent, {});
-      expect(transportEvents).toHaveLength(0);
+      expect(handledEvents).toHaveLength(1);
     });
   });
 });

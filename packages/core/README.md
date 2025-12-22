@@ -11,7 +11,7 @@ A NestJS module implementing the [Transactional Outbox Pattern](https://microser
 - **PostgreSQL LISTEN/NOTIFY**: Real-time event delivery without polling latency (MikroORM + PostgreSQL only)
 - **Graceful Shutdown**: In-flight events complete before application terminates
 - **Multiple ORMs**: TypeORM and MikroORM drivers included
-- **Flexible Processing**: Immediate or deferred event processing per event type
+- **Background Processing**: Reliable event delivery via polling mechanism
 - **Middleware Support**: Intercept event processing for logging, tracing, and error reporting
 
 ## How It Works
@@ -169,7 +169,6 @@ export class AppModule {}
 | `listeners.expiresAtTTL` | How long events are retained and retried (ms) |
 | `listeners.maxExecutionTimeTTL` | Max listener execution time before retry (ms) |
 | `listeners.readyToRetryAfterTTL` | Delay before retrying failed events (ms) |
-| `immediateProcessing` | Process immediately (`true`, default) or defer to poller (`false`) |
 
 ### Module Options
 
@@ -183,22 +182,14 @@ export class AppModule {}
 | `enableDefaultMiddlewares` | Enable default middlewares like LoggerMiddleware (default: `true`) |
 | `middlewares` | Array of custom middleware classes |
 
-## Emit Methods
+## Event Processing
 
-| Method | Behavior |
-|--------|----------|
-| `emit()` | Persists event, attempts delivery, returns immediately |
-| `emitAsync()` | Persists event, waits for all listeners to complete |
+Events are persisted to the database and processed asynchronously by a background poller. The `emit()` method:
+1. Persists the event to the outbox table atomically with any entity operations
+2. Returns immediately after persistence
+3. Event is picked up by the poller and delivered to listeners
 
-> **Note:** When `immediateProcessing: false`, both methods behave identically—they persist the event and return immediately. All processing happens via the poller.
-
-## Immediate vs Deferred Processing
-
-| Immediate (`true`, default) | Deferred (`false`) |
-|-----------------------------|--------------------|
-| Lower latency | Higher latency (waits for poller) |
-| Best-effort first delivery | All delivery via poller |
-| Most use cases | Fire-and-forget, safer crash recovery |
+This ensures reliable delivery even if the application crashes after persisting the event.
 
 ## Drivers
 

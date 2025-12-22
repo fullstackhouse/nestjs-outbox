@@ -119,7 +119,7 @@ export async function createTestApp(config: TestAppConfig): Promise<TestContext>
       return {
         driverFactory,
         events: config.events,
-        retryEveryMilliseconds: config.retryEveryMilliseconds ?? 10000,
+        retryEveryMilliseconds: config.retryEveryMilliseconds ?? 100,
         maxOutboxTransportEventPerRetry: config.maxOutboxTransportEventPerRetry ?? 100,
       };
     },
