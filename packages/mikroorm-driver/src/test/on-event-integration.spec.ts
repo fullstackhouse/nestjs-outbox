@@ -132,7 +132,7 @@ describe('@OnEvent Integration Tests', () => {
 
       const event = new UserCreatedEvent(1, 'test@example.com');
 
-      await emitter.emitAsync(event, [
+      await emitter.emit(event, [
         { operation: TransactionalEventEmitterOperations.persist, entity: user },
       ]);
 
@@ -154,18 +154,18 @@ describe('@OnEvent Integration Tests', () => {
       user.name = 'Multi Event User';
 
       const createEvent = new UserCreatedEvent(1, 'multi@example.com');
-      await emitter.emitAsync(createEvent, [
+      await emitter.emit(createEvent, [
         { operation: TransactionalEventEmitterOperations.persist, entity: user },
       ]);
 
       const updateEvent = new UserUpdatedEvent(1, 'updated@example.com');
-      await emitter.emitAsync(updateEvent, []);
+      await emitter.emit(updateEvent, []);
 
       const em = orm.em.fork();
       const userToDelete = await em.findOne(User, { id: user.id });
 
       const deleteEvent = new UserDeletedEvent(1);
-      await emitter.emitAsync(deleteEvent, [
+      await emitter.emit(deleteEvent, [
         { operation: TransactionalEventEmitterOperations.remove, entity: userToDelete! },
       ]);
 
@@ -184,7 +184,7 @@ describe('@OnEvent Integration Tests', () => {
 
       const event = new UserCreatedEvent(42, 'payload@example.com');
 
-      await emitter.emitAsync(event, [
+      await emitter.emit(event, [
         { operation: TransactionalEventEmitterOperations.persist, entity: user },
       ]);
 
