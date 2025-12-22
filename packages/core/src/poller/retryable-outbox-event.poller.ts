@@ -39,8 +39,9 @@ export class RetryableOutboxEventPoller implements OnModuleInit, OnModuleDestroy
     }
 
     const pollingSource$ = interval(this.options.pollingInterval);
+    const throttleMs = this.options.eventListenerThrottleMs ?? 100;
     const throttledEventSource$ = (this.eventListener?.events$ ?? EMPTY).pipe(
-      throttleTime(100, asyncScheduler, { leading: true, trailing: true }),
+      throttleTime(throttleMs, asyncScheduler, { leading: true, trailing: true }),
     );
 
     this.subscription = merge(pollingSource$, throttledEventSource$)

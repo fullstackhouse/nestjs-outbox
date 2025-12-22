@@ -26,6 +26,12 @@ export interface OutboxModuleOptions {
   pollingInterval: number;
   maxEventsPerPoll: number;
   driverFactory: DatabaseDriverFactory;
+  /**
+   * Throttle interval for event listener notifications (ms).
+   * First event triggers immediately, subsequent events within window are batched.
+   * @default 100
+   */
+  eventListenerThrottleMs?: number;
 }
 
 export const { ConfigurableModuleClass, MODULE_OPTIONS_TOKEN, ASYNC_OPTIONS_TYPE } = new ConfigurableModuleBuilder<OutboxModuleOptions>()
