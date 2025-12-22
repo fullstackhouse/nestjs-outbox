@@ -198,7 +198,7 @@ describe('MikroOrmOutboxTransportEvent', () => {
 
       const retrieved = await orm.em.findOne(MikroOrmOutboxTransportEvent, { eventName: 'UpdateTest' });
 
-      expect(retrieved!.attemptAt).toBe(newRetryAfter);
+      expect(Number(retrieved!.attemptAt)).toBe(newRetryAfter);
     });
   });
 
