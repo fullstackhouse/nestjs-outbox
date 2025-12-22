@@ -6,6 +6,7 @@ import {
   TransactionalEventEmitterOperations,
   OutboxEvent,
   IListener,
+  OutboxEventFlusher,
 } from '@fullstackhouse/nestjs-outbox';
 import { MikroOrmOutboxTransportEvent } from '../model/mikroorm-outbox-transport-event.model';
 import { createTestApp, cleanupTestApp, TestContext } from './test-utils';
@@ -79,6 +80,7 @@ describe('Integration Tests', () => {
 
     it('should emit an event and persist the entity', async () => {
       const emitter = context.module.get(TransactionalEventEmitter);
+      const flusher = context.module.get(OutboxEventFlusher);
       const orm = context.orm;
 
       const user = new User();
@@ -97,6 +99,7 @@ describe('Integration Tests', () => {
       const event = new UserCreatedEvent(1, 'test@example.com');
 
       await emitter.emit(event, [{ operation: TransactionalEventEmitterOperations.persist, entity: user }]);
+      await flusher.processAllPendingEvents();
 
       const em = orm.em.fork();
       const users = await em.find(User, {});
@@ -113,6 +116,7 @@ describe('Integration Tests', () => {
 
     it('should persist entity and event atomically', async () => {
       const emitter = context.module.get(TransactionalEventEmitter);
+      const flusher = context.module.get(OutboxEventFlusher);
       const orm = context.orm;
 
       const user = new User();
@@ -131,6 +135,7 @@ describe('Integration Tests', () => {
       const event = new UserCreatedEvent(2, 'atomic@example.com');
 
       await emitter.emit(event, [{ operation: TransactionalEventEmitterOperations.persist, entity: user }]);
+      await flusher.processAllPendingEvents();
 
       const em = orm.em.fork();
       const users = await em.find(User, { email: 'atomic@example.com' });
@@ -165,6 +170,7 @@ describe('Integration Tests', () => {
       expect(users).toHaveLength(2);
     });
 
+
     it('should remove entity and process event', async () => {
       const orm = context.orm;
 
@@ -178,6 +184,7 @@ describe('Integration Tests', () => {
       const userId = user.id;
 
       const emitter = context.module.get(TransactionalEventEmitter);
+      const flusher = context.module.get(OutboxEventFlusher);
 
       let handlerCalled = false;
       let deletedUserId: number | undefined;
@@ -195,6 +202,7 @@ describe('Integration Tests', () => {
 
       const event = new UserDeletedEvent(userId);
       await emitter.emit(event, [{ operation: TransactionalEventEmitterOperations.remove, entity: userToDelete! }]);
+      await flusher.processAllPendingEvents();
 
       const finalEm = orm.em.fork();
       const deletedUser = await finalEm.findOne(User, { id: userId });
@@ -214,6 +222,7 @@ describe('Integration Tests', () => {
 
     it('should add and invoke listeners', async () => {
       const emitter = context.module.get(TransactionalEventEmitter);
+      const flusher = context.module.get(OutboxEventFlusher);
       const orm = context.orm;
 
       const handledEvents: UserCreatedEvent[] = [];
@@ -234,6 +243,7 @@ describe('Integration Tests', () => {
       const event = new UserCreatedEvent(1, 'listener@example.com');
 
       await emitter.emit(event, [{ operation: TransactionalEventEmitterOperations.persist, entity: user }]);
+      await flusher.processAllPendingEvents();
 
       expect(handledEvents).toHaveLength(1);
       expect(handledEvents[0].email).toBe('listener@example.com');
@@ -278,6 +288,7 @@ describe('Integration Tests', () => {
 
     it('should handle multiple listeners for same event', async () => {
       const emitter = context.module.get(TransactionalEventEmitter);
+      const flusher = context.module.get(OutboxEventFlusher);
 
       const results: string[] = [];
 
@@ -305,9 +316,53 @@ describe('Integration Tests', () => {
       const event = new UserCreatedEvent(1, 'multi@example.com');
 
       await emitter.emit(event, [{ operation: TransactionalEventEmitterOperations.persist, entity: user }]);
+      await flusher.processAllPendingEvents();
 
       expect(results).toContain('listener1');
       expect(results).toContain('listener2');
+    });
+  });
+
+  describe('Transaction rollback with useContext', () => {
+    beforeEach(async () => {
+      context = await createTestApp({
+        events: defaultEvents,
+        additionalEntities: [User],
+        useContext: true,
+      });
+    });
+
+    it('should rollback both entity and event on transaction failure', async () => {
+      const emitter = context.module.get(TransactionalEventEmitter);
+      const orm = context.orm;
+
+      const listener: IListener<UserCreatedEvent> = {
+        getName: () => 'RollbackTestListener',
+        handle: async () => {},
+      };
+      emitter.addListener('UserCreated', listener);
+
+      const em = orm.em.fork({ useContext: true });
+
+      await expect(
+        em.transactional(async () => {
+          const user = new User();
+          user.email = 'rollback@example.com';
+          user.name = 'Rollback User';
+          em.persist(user);
+
+          await emitter.emit(new UserCreatedEvent(user.id, user.email));
+
+          throw new Error('Intentional rollback');
+        }),
+      ).rejects.toThrow('Intentional rollback');
+
+      const checkEm = orm.em.fork();
+      const users = await checkEm.find(User, { email: 'rollback@example.com' });
+      expect(users).toHaveLength(0);
+
+      const transportEvents = await checkEm.find(MikroOrmOutboxTransportEvent, {});
+      expect(transportEvents).toHaveLength(0);
     });
   });
 

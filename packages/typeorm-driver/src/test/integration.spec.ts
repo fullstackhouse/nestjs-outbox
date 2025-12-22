@@ -6,6 +6,7 @@ import {
   TransactionalEventEmitterOperations,
   OutboxEvent,
   IListener,
+  OutboxEventFlusher,
 } from '@fullstackhouse/nestjs-outbox';
 import { TypeOrmOutboxTransportEvent } from '../model/typeorm-outbox-transport-event.model';
 import { createTestApp, cleanupTestApp, TestContext } from './test-utils';
@@ -79,6 +80,7 @@ describe('Integration Tests', () => {
 
     it('should emit an event and persist the entity', async () => {
       const emitter = context.module.get(TransactionalEventEmitter);
+      const flusher = context.module.get(OutboxEventFlusher);
       const dataSource = context.dataSource;
 
       const user = new User();
@@ -97,6 +99,7 @@ describe('Integration Tests', () => {
       const event = new UserCreatedEvent(1, 'test@example.com');
 
       await emitter.emit(event, [{ operation: TransactionalEventEmitterOperations.persist, entity: user }]);
+      await flusher.processAllPendingEvents();
 
       const users = await dataSource.getRepository(User).find();
       expect(users).toHaveLength(1);
@@ -112,6 +115,7 @@ describe('Integration Tests', () => {
 
     it('should persist entity and event atomically', async () => {
       const emitter = context.module.get(TransactionalEventEmitter);
+      const flusher = context.module.get(OutboxEventFlusher);
       const dataSource = context.dataSource;
 
       const user = new User();
@@ -130,6 +134,7 @@ describe('Integration Tests', () => {
       const event = new UserCreatedEvent(2, 'atomic@example.com');
 
       await emitter.emit(event, [{ operation: TransactionalEventEmitterOperations.persist, entity: user }]);
+      await flusher.processAllPendingEvents();
 
       const users = await dataSource.getRepository(User).findBy({ email: 'atomic@example.com' });
 
@@ -173,6 +178,7 @@ describe('Integration Tests', () => {
       const userId = user.id;
 
       const emitter = context.module.get(TransactionalEventEmitter);
+      const flusher = context.module.get(OutboxEventFlusher);
 
       let handlerCalled = false;
       let deletedUserId: number | undefined;
@@ -189,6 +195,7 @@ describe('Integration Tests', () => {
 
       const event = new UserDeletedEvent(userId);
       await emitter.emit(event, [{ operation: TransactionalEventEmitterOperations.remove, entity: userToDelete! }]);
+      await flusher.processAllPendingEvents();
 
       const deletedUser = await dataSource.getRepository(User).findOneBy({ id: userId });
       expect(deletedUser).toBeNull();
@@ -207,6 +214,7 @@ describe('Integration Tests', () => {
 
     it('should add and invoke listeners', async () => {
       const emitter = context.module.get(TransactionalEventEmitter);
+      const flusher = context.module.get(OutboxEventFlusher);
       const dataSource = context.dataSource;
 
       const handledEvents: UserCreatedEvent[] = [];
@@ -227,6 +235,7 @@ describe('Integration Tests', () => {
       const event = new UserCreatedEvent(1, 'listener@example.com');
 
       await emitter.emit(event, [{ operation: TransactionalEventEmitterOperations.persist, entity: user }]);
+      await flusher.processAllPendingEvents();
 
       expect(handledEvents).toHaveLength(1);
       expect(handledEvents[0].email).toBe('listener@example.com');
@@ -270,6 +279,7 @@ describe('Integration Tests', () => {
 
     it('should handle multiple listeners for same event', async () => {
       const emitter = context.module.get(TransactionalEventEmitter);
+      const flusher = context.module.get(OutboxEventFlusher);
 
       const results: string[] = [];
 
@@ -297,6 +307,7 @@ describe('Integration Tests', () => {
       const event = new UserCreatedEvent(1, 'multi@example.com');
 
       await emitter.emit(event, [{ operation: TransactionalEventEmitterOperations.persist, entity: user }]);
+      await flusher.processAllPendingEvents();
 
       expect(results).toContain('listener1');
       expect(results).toContain('listener2');

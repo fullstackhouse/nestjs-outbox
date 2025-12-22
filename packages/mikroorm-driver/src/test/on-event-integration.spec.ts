@@ -7,6 +7,7 @@ import {
   TransactionalEventEmitterOperations,
   OutboxEvent,
   OnEvent,
+  OutboxEventFlusher,
 } from '@fullstackhouse/nestjs-outbox';
 import { createTestApp, cleanupTestApp, TestContext } from './test-utils';
 
@@ -125,6 +126,7 @@ describe('@OnEvent Integration Tests', () => {
   describe('Method-level @OnEvent listeners', () => {
     it('should invoke @OnEvent decorated method when event is emitted', async () => {
       const emitter = context.module.get(TransactionalEventEmitter);
+      const flusher = context.module.get(OutboxEventFlusher);
 
       const user = new User();
       user.email = 'test@example.com';
@@ -135,6 +137,7 @@ describe('@OnEvent Integration Tests', () => {
       await emitter.emit(event, [
         { operation: TransactionalEventEmitterOperations.persist, entity: user },
       ]);
+      await flusher.processAllPendingEvents();
 
       expect(handledEvents).toHaveLength(1);
       expect(handledEvents[0].type).toBe('created');
@@ -147,6 +150,7 @@ describe('@OnEvent Integration Tests', () => {
 
     it('should route different events to different methods in the same class', async () => {
       const emitter = context.module.get(TransactionalEventEmitter);
+      const flusher = context.module.get(OutboxEventFlusher);
       const orm = context.orm;
 
       const user = new User();
@@ -157,9 +161,11 @@ describe('@OnEvent Integration Tests', () => {
       await emitter.emit(createEvent, [
         { operation: TransactionalEventEmitterOperations.persist, entity: user },
       ]);
+      await flusher.processAllPendingEvents();
 
       const updateEvent = new UserUpdatedEvent(1, 'updated@example.com');
       await emitter.emit(updateEvent, []);
+      await flusher.processAllPendingEvents();
 
       const em = orm.em.fork();
       const userToDelete = await em.findOne(User, { id: user.id });
@@ -168,6 +174,7 @@ describe('@OnEvent Integration Tests', () => {
       await emitter.emit(deleteEvent, [
         { operation: TransactionalEventEmitterOperations.remove, entity: userToDelete! },
       ]);
+      await flusher.processAllPendingEvents();
 
       expect(handledEvents).toHaveLength(3);
       expect(handledEvents[0].type).toBe('created');
@@ -177,6 +184,7 @@ describe('@OnEvent Integration Tests', () => {
 
     it('should receive correct event payload in handler method', async () => {
       const emitter = context.module.get(TransactionalEventEmitter);
+      const flusher = context.module.get(OutboxEventFlusher);
 
       const user = new User();
       user.email = 'payload@example.com';
@@ -187,6 +195,7 @@ describe('@OnEvent Integration Tests', () => {
       await emitter.emit(event, [
         { operation: TransactionalEventEmitterOperations.persist, entity: user },
       ]);
+      await flusher.processAllPendingEvents();
 
       expect(handledEvents).toHaveLength(1);
       expect(handledEvents[0].event.userId).toBe(42);
@@ -195,6 +204,7 @@ describe('@OnEvent Integration Tests', () => {
 
     it('should work with fire-and-forget emit', async () => {
       const emitter = context.module.get(TransactionalEventEmitter);
+      const flusher = context.module.get(OutboxEventFlusher);
 
       const user = new User();
       user.email = 'async@example.com';
@@ -205,8 +215,7 @@ describe('@OnEvent Integration Tests', () => {
       await emitter.emit(event, [
         { operation: TransactionalEventEmitterOperations.persist, entity: user },
       ]);
-
-      await new Promise((resolve) => setTimeout(resolve, 100));
+      await flusher.processAllPendingEvents();
 
       expect(handledEvents).toHaveLength(1);
       expect(handledEvents[0].type).toBe('created');
