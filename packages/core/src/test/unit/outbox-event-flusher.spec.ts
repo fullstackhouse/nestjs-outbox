@@ -53,27 +53,31 @@ describe('OutboxEventFlusher', () => {
                 eventName: 'TestEvent',
                 eventPayload: { data: 'test' },
                 deliveredToListeners: [],
-                readyToRetryAfter: Date.now(),
+                attemptAt: Date.now(),
                 expireAt: Date.now() + 1000,
                 insertedAt: Date.now(),
+                retryCount: 0,
+                status: 'pending',
             },
             {
                 id: 2,
                 eventName: 'TestEvent',
                 eventPayload: { data: 'test2' },
                 deliveredToListeners: [],
-                readyToRetryAfter: Date.now(),
+                attemptAt: Date.now(),
                 expireAt: Date.now() + 1000,
                 insertedAt: Date.now(),
+                retryCount: 0,
+                status: 'pending',
             },
         ];
 
         const eventConfig = {
             name: 'TestEvent',
             listeners: {
-                expiresAtTTL: 1000,
-                readyToRetryAfterTTL: 1000,
-                maxExecutionTimeTTL: 1000,
+                retentionPeriod: 1000,
+                maxRetries: 5,
+                maxExecutionTime: 1000,
             },
         };
 
@@ -107,27 +111,31 @@ describe('OutboxEventFlusher', () => {
                 eventName: 'TestEvent',
                 eventPayload: {},
                 deliveredToListeners: [],
-                readyToRetryAfter: Date.now(),
+                attemptAt: Date.now(),
                 expireAt: Date.now() + 1000,
                 insertedAt: Date.now(),
+                retryCount: 0,
+                status: 'pending',
             },
             {
                 id: 2,
                 eventName: 'TestEvent',
                 eventPayload: {},
                 deliveredToListeners: [],
-                readyToRetryAfter: Date.now(),
+                attemptAt: Date.now(),
                 expireAt: Date.now() + 1000,
                 insertedAt: Date.now(),
+                retryCount: 0,
+                status: 'pending',
             },
         ];
 
         const eventConfig = {
             name: 'TestEvent',
             listeners: {
-                expiresAtTTL: 1000,
-                readyToRetryAfterTTL: 1000,
-                maxExecutionTimeTTL: 1000,
+                retentionPeriod: 1000,
+                maxRetries: 5,
+                maxExecutionTime: 1000,
             },
         };
 
@@ -153,17 +161,19 @@ describe('OutboxEventFlusher', () => {
             eventName: 'TestEvent',
             eventPayload: {},
             deliveredToListeners: ['listener1'],
-            readyToRetryAfter: Date.now(),
+            attemptAt: Date.now(),
             expireAt: Date.now() + 1000,
             insertedAt: Date.now(),
+            retryCount: 0,
+            status: 'pending',
         };
 
         const eventConfig = {
             name: 'TestEvent',
             listeners: {
-                expiresAtTTL: 1000,
-                readyToRetryAfterTTL: 1000,
-                maxExecutionTimeTTL: 1000,
+                retentionPeriod: 1000,
+                maxRetries: 5,
+                maxExecutionTime: 1000,
             },
         };
 
@@ -189,17 +199,19 @@ describe('OutboxEventFlusher', () => {
             eventName: 'TestEvent',
             eventPayload: {},
             deliveredToListeners: ['listener1'],
-            readyToRetryAfter: Date.now(),
+            attemptAt: Date.now(),
             expireAt: Date.now() + 1000,
             insertedAt: Date.now(),
+            retryCount: 0,
+            status: 'pending',
         };
 
         const eventConfig = {
             name: 'TestEvent',
             listeners: {
-                expiresAtTTL: 1000,
-                readyToRetryAfterTTL: 1000,
-                maxExecutionTimeTTL: 1000,
+                retentionPeriod: 1000,
+                maxRetries: 5,
+                maxExecutionTime: 1000,
             },
         };
 
@@ -227,18 +239,22 @@ describe('OutboxEventFlusher', () => {
             eventName: 'Event1',
             eventPayload: {},
             deliveredToListeners: [],
-            readyToRetryAfter: Date.now(),
+            attemptAt: Date.now(),
             expireAt: Date.now() + 1000,
             insertedAt: Date.now(),
+            retryCount: 0,
+            status: 'pending',
         };
         const event2: OutboxTransportEvent = {
             id: 2,
             eventName: 'Event2',
             eventPayload: {},
             deliveredToListeners: [],
-            readyToRetryAfter: Date.now(),
+            attemptAt: Date.now(),
             expireAt: Date.now() + 1000,
             insertedAt: Date.now(),
+            retryCount: 0,
+            status: 'pending',
         };
 
         const listener1: IListener<any> = { handle: vi.fn(), getName: vi.fn().mockReturnValue('l1') };
@@ -247,7 +263,7 @@ describe('OutboxEventFlusher', () => {
         (mockedDriver.findPendingEvents as ReturnType<typeof vi.fn>).mockResolvedValue([event1, event2]);
         (mockedEventConfigurationResolver.resolve as ReturnType<typeof vi.fn>).mockReturnValue({
             name: 'test',
-            listeners: { expiresAtTTL: 1000, readyToRetryAfterTTL: 1000, maxExecutionTimeTTL: 1000 },
+            listeners: { retentionPeriod: 1000, maxRetries: 5, maxExecutionTime: 1000 },
         });
         (mockedTransactionalEventEmitter.getListeners as ReturnType<typeof vi.fn>)
             .mockReturnValueOnce([listener1])

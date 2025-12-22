@@ -46,9 +46,9 @@ describe('OutboxEventProcessor', () => {
             {
               name: 'newEvent',
               listeners: {
-                expiresAtTTL: 1000,
-                readyToRetryAfterTTL: 1000,
-                maxExecutionTimeTTL: 1000,
+                retentionPeriod: 1000,
+                maxRetries: 5,
+                maxExecutionTime: 1000,
               },
             },
           ];
@@ -71,13 +71,15 @@ describe('OutboxEventProcessor', () => {
         );
 
         const outboxTransportEvent : OutboxTransportEvent = {
-            readyToRetryAfter: new Date().getTime(),
+            attemptAt: new Date().getTime(),
             deliveredToListeners: [],
             eventName: 'newEvent',
             eventPayload: {},
             expireAt: new Date().getTime() + 1000,
             id: 1,
             insertedAt: new Date().getTime(),
+            retryCount: 0,
+            status: 'pending',
         };
 
         await outboxEventProcessor.process(outboxOptions.events[0], outboxTransportEvent, [firstListener, secondListener]);
@@ -94,9 +96,9 @@ describe('OutboxEventProcessor', () => {
             {
               name: 'newEvent',
               listeners: {
-                expiresAtTTL: 1000,
-                readyToRetryAfterTTL: 1000,
-                maxExecutionTimeTTL: 1000,
+                retentionPeriod: 1000,
+                maxRetries: 5,
+                maxExecutionTime: 1000,
               },
             },
           ];
@@ -119,13 +121,15 @@ describe('OutboxEventProcessor', () => {
         );
 
         const outboxTransportEvent : OutboxTransportEvent = {
-            readyToRetryAfter: new Date().getTime(),
+            attemptAt: new Date().getTime(),
             deliveredToListeners: [],
             eventName: 'newEvent',
             eventPayload: {},
             expireAt: new Date().getTime() + 1000,
             id: 1,
             insertedAt: new Date().getTime(),
+            retryCount: 0,
+            status: 'pending',
         };
 
         await outboxEventProcessor.process(outboxOptions.events[0], outboxTransportEvent, [firstListener, secondListener]);
@@ -142,9 +146,9 @@ describe('OutboxEventProcessor', () => {
                 {
                     name: 'newEvent',
                     listeners: {
-                        expiresAtTTL: 1000,
-                        readyToRetryAfterTTL: 1000,
-                        maxExecutionTimeTTL: 1000,
+                        retentionPeriod: 1000,
+                        maxRetries: 5,
+                        maxExecutionTime: 1000,
                     },
                 },
             ];
@@ -168,13 +172,15 @@ describe('OutboxEventProcessor', () => {
             );
 
             const outboxTransportEvent: OutboxTransportEvent = {
-                readyToRetryAfter: new Date().getTime(),
+                attemptAt: new Date().getTime(),
                 deliveredToListeners: [],
                 eventName: 'newEvent',
                 eventPayload: { test: 'data' },
                 expireAt: new Date().getTime() + 1000,
                 id: 1,
                 insertedAt: new Date().getTime(),
+                retryCount: 0,
+                status: 'pending',
             };
 
             await outboxEventProcessor.process(outboxOptions.events[0], outboxTransportEvent, [listener]);
@@ -209,9 +215,9 @@ describe('OutboxEventProcessor', () => {
                 {
                     name: 'newEvent',
                     listeners: {
-                        expiresAtTTL: 1000,
-                        readyToRetryAfterTTL: 1000,
-                        maxExecutionTimeTTL: 1000,
+                        retentionPeriod: 1000,
+                        maxRetries: 5,
+                        maxExecutionTime: 1000,
                     },
                 },
             ];
@@ -236,7 +242,7 @@ describe('OutboxEventProcessor', () => {
             );
 
             const outboxTransportEvent: OutboxTransportEvent = {
-                readyToRetryAfter: new Date().getTime(),
+                attemptAt: new Date().getTime(),
                 deliveredToListeners: [],
                 eventName: 'newEvent',
                 eventPayload: {},
@@ -270,9 +276,9 @@ describe('OutboxEventProcessor', () => {
                 {
                     name: 'newEvent',
                     listeners: {
-                        expiresAtTTL: 1000,
-                        readyToRetryAfterTTL: 1000,
-                        maxExecutionTimeTTL: 1000,
+                        retentionPeriod: 1000,
+                        maxRetries: 5,
+                        maxExecutionTime: 1000,
                     },
                 },
             ];
@@ -300,7 +306,7 @@ describe('OutboxEventProcessor', () => {
             );
 
             const outboxTransportEvent: OutboxTransportEvent = {
-                readyToRetryAfter: new Date().getTime(),
+                attemptAt: new Date().getTime(),
                 deliveredToListeners: [],
                 eventName: 'newEvent',
                 eventPayload: {},
@@ -319,9 +325,9 @@ describe('OutboxEventProcessor', () => {
                 {
                     name: 'newEvent',
                     listeners: {
-                        expiresAtTTL: 1000,
-                        readyToRetryAfterTTL: 1000,
-                        maxExecutionTimeTTL: 1000,
+                        retentionPeriod: 1000,
+                        maxRetries: 5,
+                        maxExecutionTime: 1000,
                     },
                 },
             ];
@@ -348,7 +354,7 @@ describe('OutboxEventProcessor', () => {
             );
 
             const outboxTransportEvent: OutboxTransportEvent = {
-                readyToRetryAfter: new Date().getTime(),
+                attemptAt: new Date().getTime(),
                 deliveredToListeners: [],
                 eventName: 'newEvent',
                 eventPayload: {},
@@ -369,9 +375,9 @@ describe('OutboxEventProcessor', () => {
                 {
                     name: 'newEvent',
                     listeners: {
-                        expiresAtTTL: 1000,
-                        readyToRetryAfterTTL: 1000,
-                        maxExecutionTimeTTL: 1000,
+                        retentionPeriod: 1000,
+                        maxRetries: 5,
+                        maxExecutionTime: 1000,
                     },
                 },
             ];
@@ -393,7 +399,7 @@ describe('OutboxEventProcessor', () => {
             );
 
             const outboxTransportEvent: OutboxTransportEvent = {
-                readyToRetryAfter: new Date().getTime(),
+                attemptAt: new Date().getTime(),
                 deliveredToListeners: [],
                 eventName: 'newEvent',
                 eventPayload: {},
@@ -423,9 +429,9 @@ describe('OutboxEventProcessor', () => {
                 {
                     name: 'newEvent',
                     listeners: {
-                        expiresAtTTL: 1000,
-                        readyToRetryAfterTTL: 1000,
-                        maxExecutionTimeTTL: 1000,
+                        retentionPeriod: 1000,
+                        maxRetries: 5,
+                        maxExecutionTime: 1000,
                     },
                 },
             ];
@@ -452,13 +458,15 @@ describe('OutboxEventProcessor', () => {
             );
 
             const outboxTransportEvent: OutboxTransportEvent = {
-                readyToRetryAfter: new Date().getTime(),
+                attemptAt: new Date().getTime(),
                 deliveredToListeners: [],
                 eventName: 'newEvent',
                 eventPayload: { test: 'data' },
                 expireAt: new Date().getTime() + 1000,
                 id: 1,
                 insertedAt: new Date().getTime(),
+                retryCount: 0,
+                status: 'pending',
             };
 
             await outboxEventProcessor.process(outboxOptions.events[0], outboxTransportEvent, [listener]);
@@ -485,9 +493,9 @@ describe('OutboxEventProcessor', () => {
                 {
                     name: 'newEvent',
                     listeners: {
-                        expiresAtTTL: 1000,
-                        readyToRetryAfterTTL: 1000,
-                        maxExecutionTimeTTL: 1000,
+                        retentionPeriod: 1000,
+                        maxRetries: 5,
+                        maxExecutionTime: 1000,
                     },
                 },
             ];
@@ -510,7 +518,7 @@ describe('OutboxEventProcessor', () => {
             );
 
             const outboxTransportEvent: OutboxTransportEvent = {
-                readyToRetryAfter: new Date().getTime(),
+                attemptAt: new Date().getTime(),
                 deliveredToListeners: [],
                 eventName: 'newEvent',
                 eventPayload: {},
@@ -529,9 +537,9 @@ describe('OutboxEventProcessor', () => {
                 {
                     name: 'newEvent',
                     listeners: {
-                        expiresAtTTL: 1000,
-                        readyToRetryAfterTTL: 1000,
-                        maxExecutionTimeTTL: 1000,
+                        retentionPeriod: 1000,
+                        maxRetries: 5,
+                        maxExecutionTime: 1000,
                     },
                 },
             ];
@@ -559,7 +567,7 @@ describe('OutboxEventProcessor', () => {
             );
 
             const outboxTransportEvent: OutboxTransportEvent = {
-                readyToRetryAfter: new Date().getTime(),
+                attemptAt: new Date().getTime(),
                 deliveredToListeners: [],
                 eventName: 'newEvent',
                 eventPayload: {},
@@ -578,9 +586,9 @@ describe('OutboxEventProcessor', () => {
                 {
                     name: 'newEvent',
                     listeners: {
-                        expiresAtTTL: 1000,
-                        readyToRetryAfterTTL: 1000,
-                        maxExecutionTimeTTL: 1000,
+                        retentionPeriod: 1000,
+                        maxRetries: 5,
+                        maxExecutionTime: 1000,
                     },
                 },
             ];
@@ -608,7 +616,7 @@ describe('OutboxEventProcessor', () => {
             );
 
             const outboxTransportEvent: OutboxTransportEvent = {
-                readyToRetryAfter: new Date().getTime(),
+                attemptAt: new Date().getTime(),
                 deliveredToListeners: [],
                 eventName: 'newEvent',
                 eventPayload: {},
@@ -633,9 +641,9 @@ describe('OutboxEventProcessor', () => {
                 {
                     name: 'newEvent',
                     listeners: {
-                        expiresAtTTL: 1000,
-                        readyToRetryAfterTTL: 1000,
-                        maxExecutionTimeTTL: 1000,
+                        retentionPeriod: 1000,
+                        maxRetries: 5,
+                        maxExecutionTime: 1000,
                     },
                 },
             ];
@@ -663,7 +671,7 @@ describe('OutboxEventProcessor', () => {
             );
 
             const outboxTransportEvent: OutboxTransportEvent = {
-                readyToRetryAfter: new Date().getTime(),
+                attemptAt: new Date().getTime(),
                 deliveredToListeners: [],
                 eventName: 'newEvent',
                 eventPayload: {},

@@ -55,7 +55,7 @@ export class TransactionalEventEmitter {
     const outboxTransportEvent = databaseDriver.createOutboxTransportEvent(
       processedEvent.name,
       processedEvent,
-      currentTimestamp + eventOptions.listeners.expiresAtTTL,
+      currentTimestamp + eventOptions.listeners.retentionPeriod,
       currentTimestamp,
     );
     const persister = customDatabaseDriverPersister ?? databaseDriver;

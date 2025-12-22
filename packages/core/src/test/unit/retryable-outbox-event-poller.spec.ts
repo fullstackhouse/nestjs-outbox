@@ -28,9 +28,9 @@ describe('RetryableOutboxEventPoller', () => {
       {
         name: 'testEvent',
         listeners: {
-          expiresAtTTL: 1000,
-          readyToRetryAfterTTL: 1000,
-          maxExecutionTimeTTL: 1000,
+          retentionPeriod: 1000,
+          maxRetries: 5,
+          maxExecutionTime: 1000,
         },
       },
     ]);
@@ -83,14 +83,14 @@ describe('RetryableOutboxEventPoller', () => {
       const poller = createPoller();
       await poller.onModuleInit();
 
-      vi.advanceTimersByTime(outboxOptions.retryEveryMilliseconds);
+      vi.advanceTimersByTime(outboxOptions.pollingInterval);
       await Promise.resolve();
 
       const callCountBeforeShutdown = (mockedDriver.findAndExtendReadyToRetryEvents as Mock).mock.calls.length;
 
       await poller.onModuleDestroy();
 
-      vi.advanceTimersByTime(outboxOptions.retryEveryMilliseconds * 5);
+      vi.advanceTimersByTime(outboxOptions.pollingInterval * 5);
       await Promise.resolve();
 
       const callCountAfterShutdown = (mockedDriver.findAndExtendReadyToRetryEvents as Mock).mock.calls.length;
@@ -110,16 +110,18 @@ describe('RetryableOutboxEventPoller', () => {
         eventName: 'testEvent',
         eventPayload: {},
         deliveredToListeners: [],
-        readyToRetryAfter: Date.now(),
+        attemptAt: Date.now(),
         expireAt: Date.now() + 1000,
         insertedAt: Date.now(),
+        retryCount: 0,
+        status: 'pending' as const,
       };
       (mockedDriver.findAndExtendReadyToRetryEvents as Mock).mockResolvedValue([mockEvent]);
 
       const poller = createPoller();
       await poller.onModuleInit();
 
-      vi.advanceTimersByTime(outboxOptions.retryEveryMilliseconds);
+      vi.advanceTimersByTime(outboxOptions.pollingInterval);
       await Promise.resolve();
       await Promise.resolve();
 

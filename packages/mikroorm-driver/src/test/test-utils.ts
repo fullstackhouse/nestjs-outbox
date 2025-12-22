@@ -17,8 +17,8 @@ export interface TestAppConfig {
   events: OutboxModuleEventOptions[];
   additionalModules?: DynamicModule[];
   additionalEntities?: Type[];
-  retryEveryMilliseconds?: number;
-  maxOutboxTransportEventPerRetry?: number;
+  pollingInterval?: number;
+  maxEventsPerPoll?: number;
   databaseType?: DatabaseType;
   useContext?: boolean;
 }
@@ -119,8 +119,8 @@ export async function createTestApp(config: TestAppConfig): Promise<TestContext>
       return {
         driverFactory,
         events: config.events,
-        retryEveryMilliseconds: config.retryEveryMilliseconds ?? 10000,
-        maxOutboxTransportEventPerRetry: config.maxOutboxTransportEventPerRetry ?? 100,
+        pollingInterval: config.pollingInterval ?? 10000,
+        maxEventsPerPoll: config.maxEventsPerPoll ?? 100,
       };
     },
     inject: [MikroORM],

@@ -19,13 +19,14 @@ describe('TypeORMDatabaseDriver', () => {
   let dataSource: DataSource;
   let dbName: string;
 
-  const createEventConfigResolver = (readyToRetryAfterTTL = 5000): EventConfigurationResolverContract => ({
+  const createEventConfigResolver = (maxRetries = 5): EventConfigurationResolverContract => ({
     resolve: () => ({
       name: 'TestEvent',
       listeners: {
-        expiresAtTTL: 60000,
-        readyToRetryAfterTTL,
-        maxExecutionTimeTTL: 30000,
+        retentionPeriod: 60000,
+        maxRetries,
+        maxExecutionTime: 30000,
+        retryStrategy: () => 10000,
       },
     }),
   });
@@ -183,7 +184,7 @@ describe('TypeORMDatabaseDriver', () => {
 
       await dataSource.getRepository(TypeOrmOutboxTransportEvent).save([readyEvent, notReadyEvent]);
 
-      const driver = new TypeORMDatabaseDriver(dataSource, createEventConfigResolver(10000));
+      const driver = new TypeORMDatabaseDriver(dataSource, createEventConfigResolver());
 
       const events = await driver.findAndExtendReadyToRetryEvents(10);
 
@@ -191,23 +192,42 @@ describe('TypeORMDatabaseDriver', () => {
       expect(events[0].eventName).toBe('ReadyEvent');
     });
 
-    it('should extend readyToRetryAfter timestamp', async () => {
+    it('should extend attemptAt timestamp and increment retryCount', async () => {
       const now = Date.now();
       const originalRetryAfter = now - 1000;
 
       const event = new TypeOrmOutboxTransportEvent().create('ExtendTest', {}, now + 60000, originalRetryAfter);
       await dataSource.getRepository(TypeOrmOutboxTransportEvent).save(event);
 
-      const ttl = 10000;
-      const driver = new TypeORMDatabaseDriver(dataSource, createEventConfigResolver(ttl));
+      const driver = new TypeORMDatabaseDriver(dataSource, createEventConfigResolver());
 
       const events = await driver.findAndExtendReadyToRetryEvents(10);
 
       expect(events).toHaveLength(1);
-      expect(events[0].readyToRetryAfter).toBeGreaterThan(now);
+      expect(events[0].attemptAt).toBeGreaterThan(now);
+      expect(events[0].retryCount).toBe(1);
 
       const persisted = await dataSource.getRepository(TypeOrmOutboxTransportEvent).findOneBy({ eventName: 'ExtendTest' });
-      expect(Number(persisted!.readyToRetryAfter)).toBeGreaterThan(now);
+      expect(Number(persisted!.attemptAt)).toBeGreaterThan(now);
+      expect(persisted!.retryCount).toBe(1);
+    });
+
+    it('should move event to failed status when max retries exceeded', async () => {
+      const now = Date.now();
+
+      const event = new TypeOrmOutboxTransportEvent().create('FailedTest', {}, now + 60000, now - 1000);
+      event.retryCount = 4;
+      await dataSource.getRepository(TypeOrmOutboxTransportEvent).save(event);
+
+      const driver = new TypeORMDatabaseDriver(dataSource, createEventConfigResolver(5));
+
+      const events = await driver.findAndExtendReadyToRetryEvents(10);
+
+      expect(events).toHaveLength(0);
+
+      const persisted = await dataSource.getRepository(TypeOrmOutboxTransportEvent).findOneBy({ eventName: 'FailedTest' });
+      expect(persisted!.status).toBe('failed');
+      expect(persisted!.attemptAt).toBeNull();
     });
 
     it('should respect limit parameter', async () => {

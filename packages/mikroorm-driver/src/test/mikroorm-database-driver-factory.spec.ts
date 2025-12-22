@@ -18,9 +18,9 @@ describe('MikroORMDatabaseDriverFactory', () => {
     resolve: () => ({
       name: 'TestEvent',
       listeners: {
-        expiresAtTTL: 60000,
-        readyToRetryAfterTTL: 5000,
-        maxExecutionTimeTTL: 30000,
+        retentionPeriod: 60000,
+        maxRetries: 5,
+        maxExecutionTime: 30000,
       },
     }),
   });

@@ -39,25 +39,25 @@ describe('MikroOrmOutboxTransportEvent', () => {
       const eventName = 'TestEvent';
       const eventPayload = { userId: 123, action: 'test' };
       const expireAt = Date.now() + 60000;
-      const readyToRetryAfter = Date.now() + 5000;
+      const attemptAt = Date.now() + 5000;
 
       const event = new MikroOrmOutboxTransportEvent().create(
         eventName,
         eventPayload,
         expireAt,
-        readyToRetryAfter,
+        attemptAt,
       );
 
       expect(event.eventName).toBe(eventName);
       expect(event.eventPayload).toEqual(eventPayload);
       expect(event.expireAt).toBe(expireAt);
-      expect(event.readyToRetryAfter).toBe(readyToRetryAfter);
+      expect(event.attemptAt).toBe(attemptAt);
       expect(event.deliveredToListeners).toEqual([]);
       expect(event.insertedAt).toBeDefined();
       expect(event.insertedAt).toBeLessThanOrEqual(Date.now());
     });
 
-    it('should handle null readyToRetryAfter', () => {
+    it('should handle null attemptAt', () => {
       const event = new MikroOrmOutboxTransportEvent().create(
         'TestEvent',
         {},
@@ -65,7 +65,7 @@ describe('MikroOrmOutboxTransportEvent', () => {
         null,
       );
 
-      expect(event.readyToRetryAfter).toBeNull();
+      expect(event.attemptAt).toBeNull();
     });
   });
 
@@ -148,7 +148,7 @@ describe('MikroOrmOutboxTransportEvent', () => {
   });
 
   describe('querying', () => {
-    it('should find events by readyToRetryAfter', async () => {
+    it('should find events by attemptAt', async () => {
       const now = Date.now();
       const pastEvent = new MikroOrmOutboxTransportEvent().create('PastEvent', {}, now + 60000, now - 1000);
       const futureEvent = new MikroOrmOutboxTransportEvent().create('FutureEvent', {}, now + 60000, now + 60000);
@@ -158,7 +158,7 @@ describe('MikroOrmOutboxTransportEvent', () => {
       orm.em.clear();
 
       const readyEvents = await orm.em.find(MikroOrmOutboxTransportEvent, {
-        readyToRetryAfter: { $lte: now },
+        attemptAt: { $lte: now },
       });
 
       expect(readyEvents).toHaveLength(1);
@@ -176,7 +176,7 @@ describe('MikroOrmOutboxTransportEvent', () => {
 
       const limitedEvents = await orm.em.find(
         MikroOrmOutboxTransportEvent,
-        { readyToRetryAfter: { $lte: Date.now() } },
+        { attemptAt: { $lte: Date.now() } },
         { limit: 3 },
       );
 
@@ -185,20 +185,20 @@ describe('MikroOrmOutboxTransportEvent', () => {
   });
 
   describe('update', () => {
-    it('should update readyToRetryAfter', async () => {
+    it('should update attemptAt', async () => {
       const event = new MikroOrmOutboxTransportEvent().create('UpdateTest', {}, Date.now() + 60000, Date.now() - 1000);
 
       orm.em.persist(event);
       await orm.em.flush();
 
       const newRetryAfter = Date.now() + 30000;
-      event.readyToRetryAfter = newRetryAfter;
+      event.attemptAt = newRetryAfter;
       await orm.em.flush();
       orm.em.clear();
 
       const retrieved = await orm.em.findOne(MikroOrmOutboxTransportEvent, { eventName: 'UpdateTest' });
 
-      expect(retrieved!.readyToRetryAfter).toBe(newRetryAfter);
+      expect(Number(retrieved!.attemptAt)).toBe(newRetryAfter);
     });
   });
 

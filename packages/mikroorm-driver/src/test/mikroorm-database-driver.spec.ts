@@ -20,13 +20,14 @@ describe('MikroORMDatabaseDriver', () => {
   let orm: MikroORM;
   let dbName: string;
 
-  const createEventConfigResolver = (readyToRetryAfterTTL = 5000): EventConfigurationResolverContract => ({
+  const createEventConfigResolver = (maxRetries = 5): EventConfigurationResolverContract => ({
     resolve: () => ({
       name: 'TestEvent',
       listeners: {
-        expiresAtTTL: 60000,
-        readyToRetryAfterTTL,
-        maxExecutionTimeTTL: 30000,
+        retentionPeriod: 60000,
+        maxRetries,
+        maxExecutionTime: 30000,
+        retryStrategy: () => 10000,
       },
     }),
   });
@@ -198,7 +199,7 @@ describe('MikroORMDatabaseDriver', () => {
       await setupEm.flush();
 
       const em = orm.em.fork();
-      const driver = new MikroORMDatabaseDriver(em, createEventConfigResolver(10000));
+      const driver = new MikroORMDatabaseDriver(em, createEventConfigResolver());
 
       const events = await driver.findAndExtendReadyToRetryEvents(10);
 
@@ -206,7 +207,7 @@ describe('MikroORMDatabaseDriver', () => {
       expect(events[0].eventName).toBe('ReadyEvent');
     });
 
-    it('should extend readyToRetryAfter timestamp', async () => {
+    it('should extend attemptAt timestamp and increment retryCount', async () => {
       const setupEm = orm.em.fork();
       const now = Date.now();
       const originalRetryAfter = now - 1000;
@@ -216,17 +217,40 @@ describe('MikroORMDatabaseDriver', () => {
       await setupEm.flush();
 
       const em = orm.em.fork();
-      const ttl = 10000;
-      const driver = new MikroORMDatabaseDriver(em, createEventConfigResolver(ttl));
+      const driver = new MikroORMDatabaseDriver(em, createEventConfigResolver());
 
       const events = await driver.findAndExtendReadyToRetryEvents(10);
 
       expect(events).toHaveLength(1);
-      expect(events[0].readyToRetryAfter).toBeGreaterThan(now);
+      expect(events[0].attemptAt).toBeGreaterThan(now);
+      expect(events[0].retryCount).toBe(1);
 
       const checkEm = orm.em.fork();
       const persisted = await checkEm.findOne(MikroOrmOutboxTransportEvent, { eventName: 'ExtendTest' });
-      expect(persisted!.readyToRetryAfter).toBeGreaterThan(now);
+      expect(persisted!.attemptAt).toBeGreaterThan(now);
+      expect(persisted!.retryCount).toBe(1);
+    });
+
+    it('should move event to failed status when max retries exceeded', async () => {
+      const setupEm = orm.em.fork();
+      const now = Date.now();
+
+      const event = new MikroOrmOutboxTransportEvent().create('FailedTest', {}, now + 60000, now - 1000);
+      event.retryCount = 4;
+      setupEm.persist(event);
+      await setupEm.flush();
+
+      const em = orm.em.fork();
+      const driver = new MikroORMDatabaseDriver(em, createEventConfigResolver(5));
+
+      const events = await driver.findAndExtendReadyToRetryEvents(10);
+
+      expect(events).toHaveLength(0);
+
+      const checkEm = orm.em.fork();
+      const persisted = await checkEm.findOne(MikroOrmOutboxTransportEvent, { eventName: 'FailedTest' });
+      expect(persisted!.status).toBe('failed');
+      expect(persisted!.attemptAt).toBeNull();
     });
 
     it('should respect limit parameter', async () => {
