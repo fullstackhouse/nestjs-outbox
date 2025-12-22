@@ -186,10 +186,10 @@ describe('TypeORMDatabaseDriver', () => {
 
       const driver = new TypeORMDatabaseDriver(dataSource, createEventConfigResolver());
 
-      const events = await driver.findAndExtendReadyToRetryEvents(10);
+      const { pendingEvents } = await driver.findAndExtendReadyToRetryEvents(10);
 
-      expect(events).toHaveLength(1);
-      expect(events[0].eventName).toBe('ReadyEvent');
+      expect(pendingEvents).toHaveLength(1);
+      expect(pendingEvents[0].eventName).toBe('ReadyEvent');
     });
 
     it('should extend attemptAt timestamp and increment retryCount', async () => {
@@ -201,11 +201,11 @@ describe('TypeORMDatabaseDriver', () => {
 
       const driver = new TypeORMDatabaseDriver(dataSource, createEventConfigResolver());
 
-      const events = await driver.findAndExtendReadyToRetryEvents(10);
+      const { pendingEvents } = await driver.findAndExtendReadyToRetryEvents(10);
 
-      expect(events).toHaveLength(1);
-      expect(events[0].attemptAt).toBeGreaterThan(now);
-      expect(events[0].retryCount).toBe(1);
+      expect(pendingEvents).toHaveLength(1);
+      expect(pendingEvents[0].attemptAt).toBeGreaterThan(now);
+      expect(pendingEvents[0].retryCount).toBe(1);
 
       const persisted = await dataSource.getRepository(TypeOrmOutboxTransportEvent).findOneBy({ eventName: 'ExtendTest' });
       expect(Number(persisted!.attemptAt)).toBeGreaterThan(now);
@@ -221,9 +221,11 @@ describe('TypeORMDatabaseDriver', () => {
 
       const driver = new TypeORMDatabaseDriver(dataSource, createEventConfigResolver(5));
 
-      const events = await driver.findAndExtendReadyToRetryEvents(10);
+      const { pendingEvents, deadLetteredEvents } = await driver.findAndExtendReadyToRetryEvents(10);
 
-      expect(events).toHaveLength(0);
+      expect(pendingEvents).toHaveLength(0);
+      expect(deadLetteredEvents).toHaveLength(1);
+      expect(deadLetteredEvents[0].eventName).toBe('FailedTest');
 
       const persisted = await dataSource.getRepository(TypeOrmOutboxTransportEvent).findOneBy({ eventName: 'FailedTest' });
       expect(persisted!.status).toBe('failed');
@@ -240,9 +242,9 @@ describe('TypeORMDatabaseDriver', () => {
 
       const driver = new TypeORMDatabaseDriver(dataSource, createEventConfigResolver());
 
-      const result = await driver.findAndExtendReadyToRetryEvents(3);
+      const { pendingEvents } = await driver.findAndExtendReadyToRetryEvents(3);
 
-      expect(result).toHaveLength(3);
+      expect(pendingEvents).toHaveLength(3);
     });
 
     it('should return empty array when no events are ready', async () => {
@@ -251,9 +253,10 @@ describe('TypeORMDatabaseDriver', () => {
 
       const driver = new TypeORMDatabaseDriver(dataSource, createEventConfigResolver());
 
-      const result = await driver.findAndExtendReadyToRetryEvents(10);
+      const { pendingEvents, deadLetteredEvents } = await driver.findAndExtendReadyToRetryEvents(10);
 
-      expect(result).toHaveLength(0);
+      expect(pendingEvents).toHaveLength(0);
+      expect(deadLetteredEvents).toHaveLength(0);
     });
 
     it('should use pessimistic locking for concurrent access', async () => {
@@ -272,7 +275,7 @@ describe('TypeORMDatabaseDriver', () => {
         driver2.findAndExtendReadyToRetryEvents(5),
       ]);
 
-      const allEventNames = [...result1.map(e => e.eventName), ...result2.map(e => e.eventName)];
+      const allEventNames = [...result1.pendingEvents.map(e => e.eventName), ...result2.pendingEvents.map(e => e.eventName)];
       const uniqueEventNames = new Set(allEventNames);
       expect(uniqueEventNames.size).toBe(allEventNames.length);
     });

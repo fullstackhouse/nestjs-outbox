@@ -1,4 +1,4 @@
-import { DatabaseDriver, EventConfigurationResolverContract, OutboxTransportEvent, defaultRetryStrategy } from '@fullstackhouse/nestjs-outbox';
+import { DatabaseDriver, EventConfigurationResolverContract, FindAndExtendResult, OutboxTransportEvent, defaultRetryStrategy } from '@fullstackhouse/nestjs-outbox';
 import { DataSource, LessThanOrEqual } from 'typeorm';
 import { TypeOrmOutboxTransportEvent } from '../model/typeorm-outbox-transport-event.model';
 
@@ -13,7 +13,7 @@ export class TypeORMDatabaseDriver implements DatabaseDriver {
     private readonly eventConfigurationResolver: EventConfigurationResolverContract,
   ) {}
 
-  async findAndExtendReadyToRetryEvents(limit: number): Promise<OutboxTransportEvent[]> {
+  async findAndExtendReadyToRetryEvents(limit: number): Promise<FindAndExtendResult> {
     let events: TypeOrmOutboxTransportEvent[] = [];
 
     await this.dataSource.transaction(async (transactionalEntityManager) => {
@@ -46,7 +46,10 @@ export class TypeORMDatabaseDriver implements DatabaseDriver {
       await transactionalEntityManager.save(events);
     });
 
-    return events.filter(e => e.status === 'pending');
+    return {
+      pendingEvents: events.filter(e => e.status === 'pending'),
+      deadLetteredEvents: events.filter(e => e.status === 'failed'),
+    };
   }
 
   async persist<T extends object>(entity: T): Promise<void> {

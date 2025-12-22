@@ -7,6 +7,7 @@ import { OutboxTransportEvent } from '../model/outbox-transport-event.interface'
 import { OUTBOX_EVENT_PROCESSOR_TOKEN, OutboxEventProcessorContract } from '../processor/outbox-event-processor.contract';
 import { EventConfigurationResolver } from '../resolver/event-configuration.resolver';
 import { EVENT_LISTENER_TOKEN, EventListener } from './event-listener.interface';
+import { createDeadLetterContext, OutboxMiddleware, OUTBOX_MIDDLEWARES_TOKEN } from '../middleware/outbox-middleware.interface';
 
 @Injectable()
 export class RetryableOutboxEventPoller implements OnModuleInit, OnModuleDestroy {
@@ -22,6 +23,7 @@ export class RetryableOutboxEventPoller implements OnModuleInit, OnModuleDestroy
     private eventConfigurationResolver: EventConfigurationResolver,
     @Inject(Logger) private logger: Logger,
     @Optional() @Inject(EVENT_LISTENER_TOKEN) private eventListener?: EventListener,
+    @Optional() @Inject(OUTBOX_MIDDLEWARES_TOKEN) private middlewares?: OutboxMiddleware[],
   ) {}
 
   async onModuleInit() {
@@ -87,17 +89,37 @@ export class RetryableOutboxEventPoller implements OnModuleInit, OnModuleDestroy
       const maxEventsPerPoll = this.options.maxEventsPerPoll;
       const databaseDriver = this.databaseDriverFactory.create(this.eventConfigurationResolver);
 
-      const readyToRetryEvents = await databaseDriver.findAndExtendReadyToRetryEvents(maxEventsPerPoll);
+      const { pendingEvents, deadLetteredEvents } = await databaseDriver.findAndExtendReadyToRetryEvents(maxEventsPerPoll);
 
-      if (readyToRetryEvents.length === 0) {
-        return;
+      if (deadLetteredEvents.length > 0) {
+        await this.invokeDeadLetterHandlers(deadLetteredEvents);
       }
 
-      if (readyToRetryEvents.length > 0) {
-        await this.processAsynchronousRetryableEvents(readyToRetryEvents);
+      if (pendingEvents.length > 0) {
+        await this.processAsynchronousRetryableEvents(pendingEvents);
       }
     } catch (exception) {
       this.logger.error(exception);
+    }
+  }
+
+  private async invokeDeadLetterHandlers(deadLetteredEvents: OutboxTransportEvent[]) {
+    if (!this.middlewares) {
+      return;
+    }
+
+    for (const event of deadLetteredEvents) {
+      const context = createDeadLetterContext(event);
+
+      for (const middleware of this.middlewares) {
+        if (middleware.onDeadLetter) {
+          try {
+            await middleware.onDeadLetter(context);
+          } catch (error) {
+            this.logger.error(`Error invoking onDeadLetter middleware for event ${event.eventName} (id: ${event.id}): ${error}`);
+          }
+        }
+      }
     }
   }
 

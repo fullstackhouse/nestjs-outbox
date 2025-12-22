@@ -8,6 +8,14 @@ export interface OutboxEventContext {
   listenerName: string;
 }
 
+export interface DeadLetterContext {
+  eventName: string;
+  eventPayload: unknown;
+  eventId: number;
+  retryCount: number;
+  deliveredToListeners: string[];
+}
+
 export interface OutboxListenerResult {
   success: boolean;
   error?: Error;
@@ -19,6 +27,7 @@ export interface OutboxMiddleware {
   beforeProcess?(context: OutboxEventContext): void | Promise<void>;
   afterProcess?(context: OutboxEventContext, result: OutboxListenerResult): void | Promise<void>;
   onError?(context: OutboxEventContext, error: Error): void | Promise<void>;
+  onDeadLetter?(context: DeadLetterContext): void | Promise<void>;
   wrapExecution?<T>(context: OutboxEventContext, next: () => Promise<T>): Promise<T>;
 }
 
@@ -35,5 +44,17 @@ export function createOutboxEventContext(
     eventPayload: outboxTransportEvent.eventPayload,
     eventId: outboxTransportEvent.id,
     listenerName,
+  };
+}
+
+export function createDeadLetterContext(
+  outboxTransportEvent: OutboxTransportEvent,
+): DeadLetterContext {
+  return {
+    eventName: outboxTransportEvent.eventName,
+    eventPayload: outboxTransportEvent.eventPayload,
+    eventId: outboxTransportEvent.id,
+    retryCount: outboxTransportEvent.retryCount,
+    deliveredToListeners: outboxTransportEvent.deliveredToListeners,
   };
 }
