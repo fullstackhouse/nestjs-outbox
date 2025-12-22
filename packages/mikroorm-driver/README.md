@@ -161,7 +161,7 @@ export class OrderService {
     this.em.persist(order);
 
     // Event is persisted in the same transaction
-    await this.emitter.emit(new OrderCreatedEvent(order.id));
+    await this.emitter.emitAsync(new OrderCreatedEvent(order.id));
 
     return order;
   }

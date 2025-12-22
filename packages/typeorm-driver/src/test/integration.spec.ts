@@ -96,7 +96,7 @@ describe('Integration Tests', () => {
 
       const event = new UserCreatedEvent(1, 'test@example.com');
 
-      await emitter.emit(event, [{ operation: TransactionalEventEmitterOperations.persist, entity: user }]);
+      await emitter.emitAsync(event, [{ operation: TransactionalEventEmitterOperations.persist, entity: user }]);
 
       const users = await dataSource.getRepository(User).find();
       expect(users).toHaveLength(1);
@@ -129,7 +129,7 @@ describe('Integration Tests', () => {
 
       const event = new UserCreatedEvent(2, 'atomic@example.com');
 
-      await emitter.emit(event, [{ operation: TransactionalEventEmitterOperations.persist, entity: user }]);
+      await emitter.emitAsync(event, [{ operation: TransactionalEventEmitterOperations.persist, entity: user }]);
 
       const users = await dataSource.getRepository(User).findBy({ email: 'atomic@example.com' });
 
@@ -188,7 +188,7 @@ describe('Integration Tests', () => {
       const userToDelete = await dataSource.getRepository(User).findOneBy({ id: userId });
 
       const event = new UserDeletedEvent(userId);
-      await emitter.emit(event, [{ operation: TransactionalEventEmitterOperations.remove, entity: userToDelete! }]);
+      await emitter.emitAsync(event, [{ operation: TransactionalEventEmitterOperations.remove, entity: userToDelete! }]);
 
       const deletedUser = await dataSource.getRepository(User).findOneBy({ id: userId });
       expect(deletedUser).toBeNull();
@@ -226,7 +226,7 @@ describe('Integration Tests', () => {
 
       const event = new UserCreatedEvent(1, 'listener@example.com');
 
-      await emitter.emit(event, [{ operation: TransactionalEventEmitterOperations.persist, entity: user }]);
+      await emitter.emitAsync(event, [{ operation: TransactionalEventEmitterOperations.persist, entity: user }]);
 
       expect(handledEvents).toHaveLength(1);
       expect(handledEvents[0].email).toBe('listener@example.com');
@@ -296,7 +296,7 @@ describe('Integration Tests', () => {
 
       const event = new UserCreatedEvent(1, 'multi@example.com');
 
-      await emitter.emit(event, [{ operation: TransactionalEventEmitterOperations.persist, entity: user }]);
+      await emitter.emitAsync(event, [{ operation: TransactionalEventEmitterOperations.persist, entity: user }]);
 
       expect(results).toContain('listener1');
       expect(results).toContain('listener2');
@@ -348,7 +348,7 @@ describe('Integration Tests', () => {
       });
     });
 
-    it('should set readyToRetryAfter to current time on initial insert for immediate processing', async () => {
+    it('should set readyToRetryAfter based on configuration', async () => {
       const emitter = context.module.get(TransactionalEventEmitter);
       const dataSource = context.dataSource;
 
@@ -367,13 +367,12 @@ describe('Integration Tests', () => {
       const beforeEmit = Date.now();
       const event = new UserCreatedEvent(1, 'retry@example.com');
 
-      await emitter.emit(event, [{ operation: TransactionalEventEmitterOperations.persist, entity: user }]);
+      await emitter.emitAsync(event, [{ operation: TransactionalEventEmitterOperations.persist, entity: user }]);
 
       const transportEvents = await dataSource.getRepository(TypeOrmOutboxTransportEvent).findBy({ eventName: 'UserCreated' });
 
       expect(transportEvents).toHaveLength(1);
-      expect(Number(transportEvents[0].readyToRetryAfter)).toBeGreaterThanOrEqual(beforeEmit);
-      expect(Number(transportEvents[0].readyToRetryAfter)).toBeLessThan(beforeEmit + 100);
+      expect(Number(transportEvents[0].readyToRetryAfter)).toBeGreaterThanOrEqual(beforeEmit + 100);
     });
 
     it('should set expireAt based on configuration', async () => {
@@ -395,7 +394,7 @@ describe('Integration Tests', () => {
       const beforeEmit = Date.now();
       const event = new UserCreatedEvent(1, 'expire@example.com');
 
-      await emitter.emit(event, [{ operation: TransactionalEventEmitterOperations.persist, entity: user }]);
+      await emitter.emitAsync(event, [{ operation: TransactionalEventEmitterOperations.persist, entity: user }]);
 
       const transportEvents = await dataSource.getRepository(TypeOrmOutboxTransportEvent).findBy({ eventName: 'UserCreated' });
 
@@ -404,4 +403,103 @@ describe('Integration Tests', () => {
     });
   });
 
+  describe('immediateProcessing configuration', () => {
+    it('should not process event immediately when immediateProcessing is false, but process via poller', async () => {
+      context = await createTestApp({
+        events: [
+          {
+            name: 'UserCreated',
+            listeners: {
+              expiresAtTTL: 60000,
+              readyToRetryAfterTTL: 50,
+              maxExecutionTimeTTL: 30000,
+            },
+            immediateProcessing: false,
+          },
+        ],
+        additionalEntities: [User],
+        retryEveryMilliseconds: 100,
+        maxOutboxTransportEventPerRetry: 10,
+      });
+
+      const emitter = context.module.get(TransactionalEventEmitter);
+      const dataSource = context.dataSource;
+
+      const handledEvents: UserCreatedEvent[] = [];
+      const listener: IListener<UserCreatedEvent> = {
+        getName: () => 'ImmediateProcessingListener',
+        handle: async (event: UserCreatedEvent) => {
+          handledEvents.push(event);
+        },
+      };
+      emitter.addListener('UserCreated', listener);
+
+      const user = new User();
+      user.email = 'deferred@example.com';
+      user.name = 'Deferred User';
+
+      const event = new UserCreatedEvent(1, 'deferred@example.com');
+
+      await emitter.emitAsync(event, [{ operation: TransactionalEventEmitterOperations.persist, entity: user }]);
+
+      expect(handledEvents).toHaveLength(0);
+
+      const transportEvents = await dataSource.getRepository(TypeOrmOutboxTransportEvent).findBy({ eventName: 'UserCreated' });
+      expect(transportEvents).toHaveLength(1);
+
+      await new Promise(resolve => setTimeout(resolve, 300));
+
+      expect(handledEvents).toHaveLength(1);
+      expect(handledEvents[0]).toMatchObject({
+        name: 'UserCreated',
+        userId: 1,
+        email: 'deferred@example.com',
+      });
+    });
+
+    it('should process event immediately when immediateProcessing is true (default)', async () => {
+      context = await createTestApp({
+        events: [
+          {
+            name: 'UserCreated',
+            listeners: {
+              expiresAtTTL: 60000,
+              readyToRetryAfterTTL: 5000,
+              maxExecutionTimeTTL: 30000,
+            },
+            immediateProcessing: true,
+          },
+        ],
+        additionalEntities: [User],
+        retryEveryMilliseconds: 10000,
+        maxOutboxTransportEventPerRetry: 10,
+      });
+
+      const emitter = context.module.get(TransactionalEventEmitter);
+
+      const handledEvents: UserCreatedEvent[] = [];
+      const listener: IListener<UserCreatedEvent> = {
+        getName: () => 'ImmediateListener',
+        handle: async (event: UserCreatedEvent) => {
+          handledEvents.push(event);
+        },
+      };
+      emitter.addListener('UserCreated', listener);
+
+      const user = new User();
+      user.email = 'immediate@example.com';
+      user.name = 'Immediate User';
+
+      const event = new UserCreatedEvent(1, 'immediate@example.com');
+
+      await emitter.emitAsync(event, [{ operation: TransactionalEventEmitterOperations.persist, entity: user }]);
+
+      expect(handledEvents).toHaveLength(1);
+      expect(handledEvents[0]).toMatchObject({
+        name: 'UserCreated',
+        userId: 1,
+        email: 'immediate@example.com',
+      });
+    });
+  });
 });

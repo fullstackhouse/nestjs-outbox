@@ -164,7 +164,7 @@ describe('LISTEN/NOTIFY Integration Tests', () => {
     emitter.addListener('UserCreated', failingListener);
 
     const event = new UserCreatedEvent(1, 'notify@example.com');
-    await emitter.emit(event, [
+    await emitter.emitAsync(event, [
       { operation: TransactionalEventEmitterOperations.persist, entity: user },
     ]);
 
@@ -209,7 +209,7 @@ describe('LISTEN/NOTIFY Integration Tests', () => {
     emitter.addListener('UserCreated', failingListener);
 
     const event = new UserCreatedEvent(1, 'fast@example.com');
-    await emitter.emit(event, [
+    await emitter.emitAsync(event, [
       { operation: TransactionalEventEmitterOperations.persist, entity: user },
     ]);
 

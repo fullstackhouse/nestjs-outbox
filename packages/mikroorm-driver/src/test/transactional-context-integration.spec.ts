@@ -47,7 +47,7 @@ class OrderService {
     order.total = total;
     this.em.persist(order);
 
-    await this.emitter.emit(new OrderCreatedEvent(order.id, customerEmail));
+    await this.emitter.emitAsync(new OrderCreatedEvent(order.id, customerEmail));
 
     return order;
   }
@@ -59,7 +59,7 @@ class OrderService {
     order.total = total;
     this.em.persist(order);
 
-    await this.emitter.emit(new OrderCreatedEvent(order.id, customerEmail));
+    await this.emitter.emitAsync(new OrderCreatedEvent(order.id, customerEmail));
 
     throw new Error('Intentional rollback');
   }
@@ -114,7 +114,7 @@ describe('@Transactional() decorator integration', () => {
 
       await em.transactional(async () => {
         em.persist(order);
-        await emitter.emit(new OrderCreatedEvent(order.id, order.customerEmail));
+        await emitter.emitAsync(new OrderCreatedEvent(order.id, order.customerEmail));
       });
 
       const checkEm = orm.em.fork();
@@ -148,7 +148,7 @@ describe('@Transactional() decorator integration', () => {
           order.total = 200;
           em.persist(order);
 
-          await emitter.emit(new OrderCreatedEvent(order.id, order.customerEmail));
+          await emitter.emitAsync(new OrderCreatedEvent(order.id, order.customerEmail));
 
           throw new Error('Intentional rollback');
         }),
@@ -189,10 +189,10 @@ describe('@Transactional() decorator integration', () => {
           order2.total = 200;
           em.persist(order2);
 
-          await emitter.emit(new OrderCreatedEvent(order2.id, order2.customerEmail));
+          await emitter.emitAsync(new OrderCreatedEvent(order2.id, order2.customerEmail));
         });
 
-        await emitter.emit(new OrderCreatedEvent(order1.id, order1.customerEmail));
+        await emitter.emitAsync(new OrderCreatedEvent(order1.id, order1.customerEmail));
       });
 
       const checkEm = orm.em.fork();
@@ -222,7 +222,7 @@ describe('@Transactional() decorator integration', () => {
         em.persist(order);
         orderRef = order;
 
-        await emitter.emit(new OrderCreatedEvent(order.id, order.customerEmail));
+        await emitter.emitAsync(new OrderCreatedEvent(order.id, order.customerEmail));
 
         const found = await em.findOne(Order, { customerEmail: 'identity@example.com' });
         expect(found).toBe(order);
@@ -260,7 +260,7 @@ describe('@Transactional() decorator integration', () => {
           order.total = 400;
           em.persist(order);
 
-          await emitter.emit(new OrderCreatedEvent(order.id, order.customerEmail));
+          await emitter.emitAsync(new OrderCreatedEvent(order.id, order.customerEmail));
 
           throw new Error('Intentional rollback');
         }),
