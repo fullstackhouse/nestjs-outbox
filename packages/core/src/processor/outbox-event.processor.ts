@@ -63,11 +63,7 @@ export class OutboxEventProcessor implements OutboxEventProcessorContract {
   ): Promise<{ listenerName: string, hasFailed: boolean }> {
     const context = createOutboxEventContext(outboxTransportEvent, listener.getName());
     const startTime = Date.now();
-    const abortController = new AbortController();
-
-    const timeoutId = setTimeout(() => {
-      abortController.abort();
-    }, eventOptions.listeners.maxExecutionTime);
+    const signal = AbortSignal.timeout(eventOptions.listeners.maxExecutionTime);
 
     try {
       await this.invokeBeforeProcessHooks(context);
@@ -77,13 +73,11 @@ export class OutboxEventProcessor implements OutboxEventProcessorContract {
           await listener.handle(outboxTransportEvent.eventPayload, outboxTransportEvent.eventName);
         }),
         new Promise<never>((_, reject) => {
-          abortController.signal.addEventListener('abort', () => {
+          signal.addEventListener('abort', () => {
             reject(new Error(`Listener ${listener.getName()} has been timed out`));
           }, { once: true });
         }),
       ]);
-
-      clearTimeout(timeoutId);
 
       const durationMs = Date.now() - startTime;
       await this.invokeAfterProcessHooks(context, { success: true, durationMs });
@@ -93,7 +87,6 @@ export class OutboxEventProcessor implements OutboxEventProcessorContract {
         hasFailed: false,
       };
     } catch (exception) {
-      clearTimeout(timeoutId);
       const error = exception instanceof Error ? exception : new Error(String(exception));
       const durationMs = Date.now() - startTime;
 
