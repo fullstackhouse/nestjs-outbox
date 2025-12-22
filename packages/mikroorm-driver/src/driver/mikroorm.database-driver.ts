@@ -1,15 +1,17 @@
-import { EntityManager, LockMode } from '@mikro-orm/core';
+import { EntityManager } from '@mikro-orm/core';
 import { DatabaseDriver, EventConfigurationResolverContract, OutboxTransportEvent, defaultRetryStrategy } from '@fullstackhouse/nestjs-outbox';
 import { MikroOrmOutboxTransportEvent } from '../model/mikroorm-outbox-transport-event.model';
 
 export interface MikroORMDatabaseDriverOptions {
   clearAfterFlush?: boolean;
+  useSkipLocked?: boolean;
 }
 
 const DEFAULT_MAX_RETRIES = 10;
 
 export class MikroORMDatabaseDriver implements DatabaseDriver {
   private readonly clearAfterFlush: boolean;
+  private readonly useSkipLocked: boolean;
 
   constructor(
     private readonly em: EntityManager,
@@ -17,6 +19,7 @@ export class MikroORMDatabaseDriver implements DatabaseDriver {
     options?: MikroORMDatabaseDriverOptions,
   ) {
     this.clearAfterFlush = options?.clearAfterFlush ?? true;
+    this.useSkipLocked = options?.useSkipLocked ?? true;
   }
 
   async findAndExtendReadyToRetryEvents(limit: number): Promise<OutboxTransportEvent[]> {
@@ -24,13 +27,27 @@ export class MikroORMDatabaseDriver implements DatabaseDriver {
 
     await this.em.transactional(async em => {
       const now = new Date();
-      events = await em.find(MikroOrmOutboxTransportEvent, {
-        attemptAt: { $lte: now.getTime() },
-        status: 'pending',
-      }, {
-        limit,
-        lockMode: LockMode.PESSIMISTIC_WRITE,
-      });
+
+      if (this.useSkipLocked) {
+        const connection = em.getConnection();
+        const rows = await connection.execute<Record<string, unknown>[]>(`
+          SELECT * FROM outbox_transport_event
+          WHERE attempt_at <= ? AND status = 'pending'
+          LIMIT ?
+          FOR UPDATE SKIP LOCKED
+        `, [now.getTime(), limit]);
+
+        events = rows.map(row => {
+          const entity = em.map(MikroOrmOutboxTransportEvent, row);
+          em.getUnitOfWork().merge(entity);
+          return entity;
+        });
+      } else {
+        events = await em.find(MikroOrmOutboxTransportEvent, {
+          attemptAt: { $lte: now.getTime() },
+          status: 'pending',
+        }, { limit });
+      }
 
       events.forEach(event => {
         const eventConfig = this.eventConfigurationResolver.resolve(event.eventName);

@@ -2,13 +2,24 @@ import { DatabaseDriver, EventConfigurationResolverContract, OutboxTransportEven
 import { DataSource, LessThanOrEqual } from 'typeorm';
 import { TypeOrmOutboxTransportEvent } from '../model/typeorm-outbox-transport-event.model';
 
+export interface TypeORMDatabaseDriverOptions {
+  useSkipLocked?: boolean;
+}
+
 const DEFAULT_MAX_RETRIES = 10;
 
 export class TypeORMDatabaseDriver implements DatabaseDriver {
   private entitiesToPersist: object[] = [];
   private entitiesToRemove: object[] = [];
+  private readonly useSkipLocked: boolean;
 
-  constructor(private readonly dataSource: DataSource, private readonly eventConfigurationResolver: EventConfigurationResolverContract) {}
+  constructor(
+    private readonly dataSource: DataSource,
+    private readonly eventConfigurationResolver: EventConfigurationResolverContract,
+    options?: TypeORMDatabaseDriverOptions,
+  ) {
+    this.useSkipLocked = options?.useSkipLocked ?? true;
+  }
 
   async findAndExtendReadyToRetryEvents(limit: number): Promise<OutboxTransportEvent[]> {
     let events: TypeOrmOutboxTransportEvent[] = [];
@@ -16,14 +27,26 @@ export class TypeORMDatabaseDriver implements DatabaseDriver {
     await this.dataSource.transaction(async (transactionalEntityManager) => {
       const now = new Date();
 
-      events = await transactionalEntityManager.find(TypeOrmOutboxTransportEvent, {
-        where: {
-          attemptAt: LessThanOrEqual(now.getTime()),
-          status: 'pending',
-        },
-        take: limit,
-        lock: { mode: 'pessimistic_write' },
-      });
+      if (this.useSkipLocked) {
+        events = await transactionalEntityManager
+          .getRepository(TypeOrmOutboxTransportEvent)
+          .createQueryBuilder('event')
+          .setLock('pessimistic_write')
+          .setOnLocked('skip_locked')
+          .where('event.attemptAt <= :now', { now: now.getTime() })
+          .andWhere('event.status = :status', { status: 'pending' })
+          .take(limit)
+          .getMany();
+      } else {
+        events = await transactionalEntityManager.find(TypeOrmOutboxTransportEvent, {
+          where: {
+            attemptAt: LessThanOrEqual(now.getTime()),
+            status: 'pending',
+          },
+          take: limit,
+          lock: { mode: 'pessimistic_write' },
+        });
+      }
 
       events.forEach(event => {
         const eventConfig = this.eventConfigurationResolver.resolve(event.eventName);
