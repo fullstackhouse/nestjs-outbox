@@ -22,7 +22,7 @@ export class TypeORMDatabaseDriver implements DatabaseDriver {
           status: 'pending',
         },
         take: limit,
-        lock: { mode: 'pessimistic_write' },
+        lock: { mode: 'pessimistic_partial_write' },
       });
 
       events.forEach(event => {
