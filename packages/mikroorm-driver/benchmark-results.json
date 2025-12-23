@@ -1,0 +1,79 @@
+{
+  "version": "1.0.0",
+  "timestamp": "2025-12-23T09:37:25.152Z",
+  "results": [
+    {
+      "name": "Parallel Event Emission",
+      "metrics": {
+        "durationMs": 209.01716699999997,
+        "eventsPerSecond": 478.4296019092059,
+        "eventCount": 100,
+        "listenerCount": 3,
+        "totalListenerCalls": 300,
+        "emitDurationMs": 100.4527079999998,
+        "emitEventsPerSecond": 995.4933220914282
+      },
+      "timestamp": "2025-12-23T09:37:21.636Z"
+    },
+    {
+      "name": "Sequential Batch Emission",
+      "metrics": {
+        "durationMs": 804.500959,
+        "eventsPerSecond": 621.5032989165151,
+        "eventCount": 500,
+        "batchCount": 10,
+        "eventsPerBatch": 50,
+        "emitDurationMs": 514.9970839999996
+      },
+      "timestamp": "2025-12-23T09:37:22.570Z"
+    },
+    {
+      "name": "Parallel Event Processing",
+      "metrics": {
+        "durationMs": 108.42441600000029,
+        "eventsPerSecond": 922.3014860416655,
+        "eventCount": 100,
+        "listenerCount": 5,
+        "avgTimePerEventMs": 1.084244160000003
+      },
+      "timestamp": "2025-12-23T09:37:23.120Z"
+    },
+    {
+      "name": "DLQ Events Handling",
+      "metrics": {
+        "durationMs": 172.32258300000012,
+        "eventsPerSecond": 290.1534965965544,
+        "eventCount": 50,
+        "maxRetries": 2,
+        "totalFailureAttempts": 50,
+        "avgFailuresPerEvent": 1
+      },
+      "timestamp": "2025-12-23T09:37:23.744Z"
+    },
+    {
+      "name": "Event Retries",
+      "metrics": {
+        "durationMs": 111.55854100000033,
+        "eventsPerSecond": 268.9171060421085,
+        "eventCount": 30,
+        "maxRetries": 3,
+        "avgTimePerEventMs": 3.7186180333333443
+      },
+      "timestamp": "2025-12-23T09:37:24.174Z"
+    },
+    {
+      "name": "Combined Load Test",
+      "metrics": {
+        "durationMs": 103.315834,
+        "eventsPerSecond": 580.7435092669339,
+        "eventCount": 60,
+        "successEventCount": 50,
+        "failingEventCount": 10,
+        "emitDurationMs": 26.0995410000005,
+        "processedSuccessCount": 50,
+        "failingAttempts": 10
+      },
+      "timestamp": "2025-12-23T09:37:24.981Z"
+    }
+  ]
+}
