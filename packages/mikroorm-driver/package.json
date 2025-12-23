@@ -6,6 +6,8 @@
     "build": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
+    "test:benchmark": "vitest run --testNamePattern='Benchmark'",
+    "benchmark": "BENCHMARK_OUTPUT_PATH=./benchmark-results.json vitest run --testNamePattern='Benchmark'",
     "tsc:publish": "tsc && npm publish"
   },
   "repository": {

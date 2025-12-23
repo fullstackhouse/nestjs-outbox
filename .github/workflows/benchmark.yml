@@ -1,0 +1,167 @@
+name: Benchmark
+
+on:
+  pull_request:
+    paths:
+      - 'packages/mikroorm-driver/**'
+      - 'packages/core/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - '.github/workflows/benchmark.yml'
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  benchmark:
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    steps:
+      - name: Checkout PR branch
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Build core package
+        run: npm run build --workspace=@fullstackhouse/nestjs-outbox
+
+      - name: Build MikroORM driver
+        run: npm run build --workspace=@fullstackhouse/nestjs-outbox-mikro-orm-driver
+
+      - name: Run benchmarks (PR branch)
+        run: npm test --workspace=@fullstackhouse/nestjs-outbox-mikro-orm-driver -- --testNamePattern="Benchmark"
+        env:
+          PGHOST: localhost
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: postgres
+          BENCHMARK_OUTPUT_PATH: ${{ github.workspace }}/benchmark-pr.json
+
+      - name: Checkout base branch
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.base_ref }}
+          clean: false
+          path: base-branch
+
+      - name: Run benchmarks (base branch)
+        id: base-benchmark
+        continue-on-error: true
+        working-directory: base-branch
+        run: |
+          npm ci
+          npm run build --workspace=@fullstackhouse/nestjs-outbox
+          npm run build --workspace=@fullstackhouse/nestjs-outbox-mikro-orm-driver
+          npm test --workspace=@fullstackhouse/nestjs-outbox-mikro-orm-driver -- --testNamePattern="Benchmark" || true
+        env:
+          PGHOST: localhost
+          PGUSER: postgres
+          PGPASSWORD: postgres
+          PGDATABASE: postgres
+          BENCHMARK_OUTPUT_PATH: ${{ github.workspace }}/benchmark-base.json
+
+      - name: Generate benchmark comparison
+        id: comparison
+        run: |
+          node -e "
+          const fs = require('fs');
+          const path = require('path');
+
+          const prPath = path.join(process.env.GITHUB_WORKSPACE, 'benchmark-pr.json');
+          const basePath = path.join(process.env.GITHUB_WORKSPACE, 'benchmark-base.json');
+
+          let prReport, baseReport;
+
+          try {
+            prReport = JSON.parse(fs.readFileSync(prPath, 'utf-8'));
+          } catch (e) {
+            console.log('No PR benchmark results found');
+            process.exit(0);
+          }
+
+          try {
+            baseReport = JSON.parse(fs.readFileSync(basePath, 'utf-8'));
+          } catch (e) {
+            baseReport = null;
+            console.log('No base benchmark results found (new benchmarks?)');
+          }
+
+          const lines = [
+            '## Benchmark Results',
+            '',
+            '| Test | Duration (ms) | Events/sec | vs Base |',
+            '|------|---------------|------------|---------|',
+          ];
+
+          for (const result of prReport.results) {
+            const duration = result.metrics.durationMs.toFixed(2);
+            const eps = result.metrics.eventsPerSecond?.toFixed(2) || 'N/A';
+
+            let vsBase = 'No baseline';
+            if (baseReport) {
+              const baseResult = baseReport.results.find(r => r.name === result.name);
+              if (baseResult) {
+                const durationDiff = result.metrics.durationMs - baseResult.metrics.durationMs;
+                const percent = (durationDiff / baseResult.metrics.durationMs) * 100;
+                const sign = percent > 0 ? '+' : '';
+                const emoji = percent > 10 ? ':red_circle:' :
+                             percent < -10 ? ':green_circle:' : ':white_circle:';
+                vsBase = emoji + ' ' + sign + percent.toFixed(1) + '%';
+              }
+            }
+
+            lines.push('| ' + result.name + ' | ' + duration + ' | ' + eps + ' | ' + vsBase + ' |');
+          }
+
+          lines.push('');
+          lines.push('<details>');
+          lines.push('<summary>Detailed metrics</summary>');
+          lines.push('');
+          lines.push('\\\`\\\`\\\`json');
+          lines.push(JSON.stringify(prReport, null, 2));
+          lines.push('\\\`\\\`\\\`');
+          lines.push('</details>');
+
+          const markdown = lines.join('\\n');
+          fs.writeFileSync('benchmark-comment.md', markdown.replace(/\\\\\\\`/g, '\\\`'));
+          "
+
+      - name: Find existing comment
+        uses: peter-evans/find-comment@v3
+        id: find-comment
+        with:
+          issue-number: ${{ github.event.pull_request.number }}
+          comment-author: 'github-actions[bot]'
+          body-includes: '## Benchmark Results'
+
+      - name: Post benchmark results
+        uses: peter-evans/create-or-update-comment@v4
+        if: hashFiles('benchmark-comment.md') != ''
+        with:
+          comment-id: ${{ steps.find-comment.outputs.comment-id }}
+          issue-number: ${{ github.event.pull_request.number }}
+          body-path: benchmark-comment.md
+          edit-mode: replace
