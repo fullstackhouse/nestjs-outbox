@@ -216,7 +216,7 @@ describe('TypeORMDatabaseDriver', () => {
       const now = Date.now();
 
       const event = new TypeOrmOutboxTransportEvent().create('FailedTest', {}, now + 60000, now - 1000);
-      event.retryCount = 4;
+      event.retryCount = 5;
       await dataSource.getRepository(TypeOrmOutboxTransportEvent).save(event);
 
       const driver = new TypeORMDatabaseDriver(dataSource, createEventConfigResolver(5));

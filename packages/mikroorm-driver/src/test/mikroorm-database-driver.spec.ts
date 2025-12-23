@@ -236,7 +236,7 @@ describe('MikroORMDatabaseDriver', () => {
       const now = Date.now();
 
       const event = new MikroOrmOutboxTransportEvent().create('FailedTest', {}, now + 60000, now - 1000);
-      event.retryCount = 4;
+      event.retryCount = 5;
       setupEm.persist(event);
       await setupEm.flush();
 
