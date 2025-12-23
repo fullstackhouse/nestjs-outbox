@@ -38,7 +38,7 @@ export class MikroORMDatabaseDriver implements DatabaseDriver {
 
         event.retryCount += 1;
 
-        if (event.retryCount >= maxRetries) {
+        if (event.retryCount > maxRetries) {
           event.status = 'failed';
           event.attemptAt = null;
         } else {
